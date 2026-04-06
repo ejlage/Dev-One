@@ -1,0 +1,48 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+
+# Build folders
+dist/
+build/
+.next/
+out/
+
+# Coverage
+coverage/
+
+# Prisma
+prisma/migrations/
+
+# React
+*.cache
+*.eslintcache
+
+# TypeScript (even if not used now, safe)
+*.tsbuildinfo
+
+# Temporary files
+tmp/
+temp/
+
+# Git
+.gitignore
