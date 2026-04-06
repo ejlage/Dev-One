@@ -140,12 +140,12 @@ O projeto permitiu aplicar conceitos de engenharia de software, arquitetura e de
 
 ## 11. Autores
 
-- Vítor João Gomes da Silva
-- Francisco Duarte Araújo da Rocha
-- Rui Pedro Rodrigues Gonçalves
 - André Filipe da Cunha Rodrigues
 - Eduardo Jorge dos Santos Lage
-
+- Francisco Duarte Araújo da Rocha
+- Rui Pedro Rodrigues Gonçalves
+- Vítor João Gomes da Silva
+  
 ---
 
 ## 12. Contexto Académico
