@@ -279,11 +279,13 @@ model utilizador {
   iduser              Int                  @id @default(autoincrement())
   nome                String               @db.VarChar(255)
   email               String               @unique @db.VarChar(255)
-  telemovel           Int
+  telemovel           String               @db.VarChar(20)
   password            String               @db.VarChar(255)
-  estado              Boolean
+  estado              Boolean              @default(true)
+  role                String               @default("utilizador")
   aluno               aluno[]
   direcao             direcao?
   encarregadoeducacao encarregadoeducacao?
   professor           professor?
+
 }
