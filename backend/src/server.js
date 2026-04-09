@@ -10,6 +10,7 @@ await app.register(cors);
 
 //TODAS as rotas ficam com /api
 app.register(protectedRoutes, { prefix: "/api" });
+app.register(aulasRoutes, { prefix: "/api" });
 
 app.get("/", async () => {
   return { message: "API a funcionar" };
