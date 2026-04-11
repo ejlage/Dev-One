@@ -38,7 +38,6 @@ export function Stock() {
   }, []);
 
   const figurinosEscola = figurinos.filter(f => f.tipo === 'ESCOLA' || !f.tipo);
-  });
   const [showAluguelForm, setShowAluguelForm] = useState<string | null>(null);
   const [dadosAluguel, setDadosAluguel] = useState({
     usuarioId: '',
