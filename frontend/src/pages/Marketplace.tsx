@@ -27,6 +27,7 @@ export function Marketplace() {
   const [showReservaForm, setShowReservaForm] = useState<string | null>(null);
   const [reservaData, setReservaData] = useState({ dataInicio: '', dataFim: '' });
   const [viewMode, setViewMode] = useState<'anuncios' | 'reservas'>('anuncios');
+  const [reservas, setReservas] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
