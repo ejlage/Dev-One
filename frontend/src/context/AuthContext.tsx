@@ -3,7 +3,7 @@ import { User } from '../types';
 
 const mockUsers: User[] = [
   { id: '1', nome: 'direcao', email: 'direcao@entartes.pt', role: 'DIRECAO' },
-  { id: '2', nome: 'Prof. João', email: ' joao.santos@entartes.pt', role: 'PROFESSOR' },
+  { id: '2', nome: 'Prof. João', email: 'joao.santos@entartes.pt', role: 'PROFESSOR' },
   { id: '3', nome: 'Pedro Oliveira', email: 'pedro.oliveira@email.pt', role: 'ENCARREGADO' },
   { id: '4', nome: 'Miguel Oliveira', email: 'miguel.oliveira@email.pt', role: 'ALUNO' },
   
