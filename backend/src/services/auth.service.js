@@ -28,5 +28,12 @@ export const login = async (email, password) => {
 
   const token = generateToken(user);
 
-  return { user, token };
+  return {
+  user: {
+    id: user.id,
+    email: user.email
+  },
+  token
+};
+
 };
