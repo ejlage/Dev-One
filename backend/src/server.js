@@ -1,25 +1,15 @@
-import "dotenv/config";
 import Fastify from "fastify";
-import cors from "@fastify/cors";
+import authRoutes from "./routes/auth.routes.js";
 import protectedRoutes from "./routes/protected.routes.js";
 
+const app = Fastify();
 
-const app = Fastify({ logger: true });
-
-await app.register(cors);
-
-//TODAS as rotas ficam com /api
+// rotas
+app.register(authRoutes, { prefix: "/api/auth" });
 app.register(protectedRoutes, { prefix: "/api" });
 app.register(aulasRoutes, { prefix: "/api" });
 
-app.get("/", async () => {
-  return { message: "API a funcionar" };
+app.listen({ port: 3000 }, (err) => {
+  if (err) throw err;
+  console.log("Servidor a correr em http://localhost:3000");
 });
-
-try {
-  await app.listen({ port: 3000 });
-  console.log("Servidor em http://localhost:3000");
-} catch (err) {
-  app.log.error(err);
-  process.exit(1);
-}
