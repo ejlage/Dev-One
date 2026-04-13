@@ -1,6 +1,6 @@
 // helpers para func
 
-import prisma from "../config/prisma.js";
+import prisma from "../config/db.js";
  
 // Converte data para minutos
 export function timeParaMinutos(dateObj) {
