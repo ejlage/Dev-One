@@ -1,17 +1,10 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import api from '../services/api';
 import { User } from '../types';
-
-const mockUsers: User[] = [
-  { id: '1', nome: 'direcao', email: 'direcao@entartes.pt', role: 'DIRECAO' },
-  { id: '2', nome: 'Prof. João', email: 'joao.santos@entartes.pt', role: 'PROFESSOR' },
-  { id: '3', nome: 'Pedro Oliveira', email: 'pedro.oliveira@email.pt', role: 'ENCARREGADO' },
-  { id: '4', nome: 'Miguel Oliveira', email: 'miguel.oliveira@email.pt', role: 'ALUNO' },
-  
-];
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string) => boolean;
+  login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
   isAuthenticated: boolean;
 }
@@ -21,30 +14,53 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
 
-  const login = (email: string, password: string): boolean => {
-    // Mock login - em produção seria validado no backend
-    const foundUser = mockUsers.find(u => u.email === email);
-    
-    if (foundUser && password === 'password123') {
-      setUser(foundUser);
-      localStorage.setItem('currentUser', JSON.stringify(foundUser));
-      return true;
+  useEffect(() => {
+    const storedUser = localStorage.getItem('currentUser');
+    const storedToken = localStorage.getItem('authToken');
+
+    if (storedUser && storedToken) {
+      try {
+        setUser(JSON.parse(storedUser));
+        api.setToken(storedToken);
+      } catch {
+        localStorage.removeItem('currentUser');
+        localStorage.removeItem('authToken');
+      }
     }
-    return false;
+  }, []);
+
+  const login = async (email: string, password: string): Promise<boolean> => {
+    try {
+      const result = await api.login(email, password);
+
+      if (result?.token && result?.user) {
+        setUser(result.user);
+        localStorage.setItem('currentUser', JSON.stringify(result.user));
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error('Erro no login:', error);
+      return false;
+    }
   };
 
   const logout = () => {
     setUser(null);
+    api.logout();
     localStorage.removeItem('currentUser');
   };
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      login, 
-      logout, 
-      isAuthenticated: !!user 
-    }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        login,
+        logout,
+        isAuthenticated: !!user,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
