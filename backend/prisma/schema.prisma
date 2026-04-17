@@ -54,7 +54,7 @@ model anuncio {
 model aula {
   idaula                   Int          @id @default(autoincrement())
   pedidodeaulaidpedidoaula Int
-  salaidsala               Int
+  salaidsala               Int 
   estadoaulaidestadoaula   Int
   alunoaula                alunoaula[]
   pedidodeaula             pedidodeaula @relation(fields: [pedidodeaulaidpedidoaula], references: [idpedidoaula], onDelete: NoAction, onUpdate: NoAction, map: "fkaula258513")
