@@ -1,5 +1,13 @@
 # Sistema de Gestão de Aulas, Figurinos e Eventos
 
+![React](https://img.shields.io/badge/Frontend-React-61DAFB?logo=react)
+![Node.js](https://img.shields.io/badge/Backend-Node.js-339933?logo=nodedotjs)
+![Fastify](https://img.shields.io/badge/Framework-Fastify-000000?logo=fastify)
+![REST API](https://img.shields.io/badge/API-REST-red?logo=json)
+![PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL-336791?logo=postgresql)
+![Prisma](https://img.shields.io/badge/ORM-Prisma-2D3748?logo=prisma)
+![Status](https://img.shields.io/badge/Status-Academic_Project-fe7d37)
+
 ## 1. Introdução
 
 O presente projeto tem como objetivo o desenvolvimento de uma aplicação web para a gestão de aulas de coaching, gestão de figurinos e divulgação de eventos, permitindo a interação entre diferentes tipos de utilizadores, nomeadamente alunos, encarregados de educação, professores e direção.
