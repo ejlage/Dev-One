@@ -1,11 +1,11 @@
 # Sistema de Gestão de Aulas, Figurinos e Eventos
 
-![React](https://img.shields.io/badge/Frontend-React-61DAFB?logo=react)
-![Node.js](https://img.shields.io/badge/Backend-Node.js-339933?logo=nodedotjs)
-![Fastify](https://img.shields.io/badge/Framework-Fastify-000000?logo=fastify)
-![REST API](https://img.shields.io/badge/API-REST-red?logo=json)
-![PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL-336791?logo=postgresql)
-![Prisma](https://img.shields.io/badge/ORM-Prisma-2D3748?logo=prisma)
+[![React](https://img.shields.io/badge/Frontend-React-61DAFB?logo=react)](https://react.dev/)
+[![Node.js](https://img.shields.io/badge/Backend-Node.js-339933?logo=nodedotjs)](https://nodejs.org/)
+[![Fastify](https://img.shields.io/badge/Framework-Fastify-000000?logo=fastify)](https://fastify.dev/)
+[![REST API](https://img.shields.io/badge/API-REST-red?logo=json)](https://restfulapi.net/)
+[![PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL-336791?logo=postgresql)](https://www.postgresql.org/)
+[![Prisma](https://img.shields.io/badge/ORM-Prisma-2D3748?logo=prisma)](https://www.prisma.io/)
 ![Status](https://img.shields.io/badge/Status-Academic_Project-fe7d37)
 
 ## 1. Introdução
