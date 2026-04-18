@@ -16,14 +16,13 @@ A aplicação visa responder às necessidades identificadas no contexto da organ
 
 ---
 
-## 2. Objetivos do Sistema
+## 2. Funcionalidades Principais
 
-- Permitir autenticação segura de utilizadores
-- Gerir pedidos e agendamento de aulas
-- Controlar disponibilidade de professores e salas
-- Gerir inventário e reservas de figurinos
-- Disponibilizar e divulgar eventos
-- Garantir comunicação eficiente entre os intervenientes
+* **Autenticação Segura:** Login diferenciado por papéis (RBAC).
+* **Gestão de Aulas:** Marcação, agendamento e consulta de horários.
+* **Gestão de Recursos:** Inventário e controlo de reservas de figurinos.
+* **Agenda de Eventos:** Divulgação e gestão de eventos organizacionais.
+* **Comunicação:** Interface direta entre direção, docentes e alunos.
 
 ---
 
@@ -135,7 +134,7 @@ npm run dev
 
 ## 9. Testes
 
-- Backend: Vitest + Supertest
+- Backend: Vitest
 - Frontend: React Testing Library
 
 ---
