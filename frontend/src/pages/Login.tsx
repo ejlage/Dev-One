@@ -12,23 +12,25 @@ export function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
+ const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setError('');
+  setLoading(true);
 
-    // Simular delay de rede
-    setTimeout(() => {
-      const success = login(email, password);
-      
-      if (success) {
-        navigate('/dashboard');
-      } else {
-        setError('Email ou password incorretos');
-      }
-      setLoading(false);
-    }, 800);
-  };
+  try {
+    const success = await login(email, password);
+
+    if (success) {
+      navigate('/dashboard');
+    } else {
+      setError('Email ou password incorretos');
+    }
+  } catch {
+    setError('Erro ao iniciar sessão');
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="min-h-screen bg-[#0a1a17] flex items-center justify-center px-4"
@@ -114,10 +116,10 @@ export function Login() {
           </p>
           <div className="space-y-1 text-xs text-[#0d6b5e]">
             <p>• <strong>Direção:</strong> direcao@entartes.pt</p>
-            <p>• <strong>Professor:</strong> joao.santos@entartes.pt</p>
-            <p>• <strong>Encarregado:</strong> pedro.oliveira@email.pt</p>
-            <p>• <strong>Aluno:</strong> miguel.oliveira@email.pt</p>
-            <p className="mt-2 text-[#4d7068]">Password para todos: <strong className="text-[#0a1a17]">password123</strong></p>
+            <p>• <strong>Professor:</strong> professor@entartes.pt</p>
+            <p>• <strong>Encarregado:</strong> encarregado@entartes.pt</p>
+            <p>• <strong>Aluno:</strong> aluno1@entartes.pt</p>
+            <p className="mt-2 text-[#4d7068]">Password para todos: <strong className="text-[#0a1a17]">Entartes2026!</strong></p>
           </div>
         </div>
 

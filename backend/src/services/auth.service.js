@@ -23,17 +23,16 @@ export const login = async (email, password) => {
   if (!user) throw new Error("Utilizador não encontrado");
 
   const valid = await bcrypt.compare(password, user.password);
-
   if (!valid) throw new Error("Password inválida");
 
   const token = generateToken(user);
 
   return {
-  user: {
-    id: user.id,
-    email: user.email
-  },
-  token
-};
-
+    user: {
+      iduser: user.iduser,
+      email:  user.email,
+      role:   user.role,
+    },
+    token,
+  };
 };
