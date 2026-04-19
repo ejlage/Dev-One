@@ -1,6 +1,7 @@
 export function authorizeRole(...roles) {
   return async (req, reply) => {
-    if (!roles.includes(req.user.role)) {
+    const userRole = req.user.role?.toUpperCase();
+    if (!userRole || !roles.map(r => r.toUpperCase()).includes(userRole)) {
       return reply.status(403).send({
         error: "Acesso negado"
       });

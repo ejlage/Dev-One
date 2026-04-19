@@ -13,12 +13,12 @@ export type TipoTransacao = 'VENDA' | 'ALUGUER';
 export type ReservaFigurinoStatus = 'PENDENTE' | 'APROVADA' | 'REJEITADA';
 
 export interface User {
-  id: string;
+  iduser: number;
   nome: string;
   email: string;
-  role: UserRole;
-  encarregadoId?: string; // Se for ALUNO, referência ao encarregado
-  alunosIds?: string[]; // Se for ENCARREGADO, lista de alunos
+  telemovel?: string;
+  role: 'UTILIZADOR' | 'ALUNO' | 'PROFESSOR' | 'ENCARREGADO' | 'DIRECAO';
+  estado?: boolean;
 }
 
 export interface PedidoAula {

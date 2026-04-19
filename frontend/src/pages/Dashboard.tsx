@@ -15,25 +15,77 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const itemsPerPage = 5;
 
+const mapAulaFromApi = (aula: any) => {
+  const pedido = aula.pedidodeaula || {};
+  const disponibilidade = pedido.disponibilidade || {};
+  const professor = disponibilidade.professor?.utilizador || {};
+  const encarregado = pedido.encarregadoeducacao?.utilizador || {};
+  const sala = aula.sala || pedido.sala || {};
+  const estado = aula.estadoaula?.nomeestadoaula || 'PENDENTE';
+  const alunos = aula.alunoaula || [];
+
+  const data = pedido.data ? new Date(pedido.data) : null;
+  const horaInicioDate = pedido.horainicio ? new Date(pedido.horainicio) : null;
+  const duracaoDate = pedido.duracaoaula ? new Date(pedido.duracaoaula) : null;
+
+  const horaInicio = horaInicioDate
+    ? horaInicioDate.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })
+    : '';
+
+  const duracaoMin = duracaoDate
+    ? duracaoDate.getUTCHours() * 60 + duracaoDate.getUTCMinutes()
+    : 0;
+
+  const horaFim =
+    horaInicioDate && duracaoMin
+      ? new Date(horaInicioDate.getTime() + duracaoMin * 60000).toLocaleTimeString('pt-PT', {
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : '';
+
+  return {
+    id: String(aula.idaula),
+    data: data ? data.toISOString() : '',
+    horaInicio,
+    horaFim,
+    status: estado,
+    professorId: professor.iduser ? String(professor.iduser) : '',
+    professorNome: professor.nome || 'Professor',
+    estudioNome: sala.nomesala ? `Sala ${sala.nomesala}` : 'Sem sala',
+    alunoId: alunos[0]?.aluno?.utilizador?.iduser
+      ? String(alunos[0].aluno.utilizador.iduser)
+      : '',
+    alunoNome: alunos.length
+      ? alunos.map((a: any) => a.aluno?.utilizador?.nome).filter(Boolean).join(', ')
+      : 'Sem alunos',
+    encarregadoId: encarregado.iduser ? String(encarregado.iduser) : '',
+  };
+};
+
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [aulasRes, anunciosRes, turmasRes] = await Promise.all([
-          api.getAulas(),
-          api.getAnuncios(),
-          api.getTurmas()
-        ]);
-        if (aulasRes.success) setAulas(aulasRes.data);
-        if (anunciosRes.success) setAnuncios(anunciosRes.data);
-        if (turmasRes.success) setTurmas(turmasRes.data);
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, []);
+  const fetchData = async () => {
+    try {
+      const aulasRes = await api.getAulas();
+      const aulasMapeadas = (aulasRes.aulas || []).map(mapAulaFromApi);
+
+      setAulas(aulasMapeadas);
+
+      // Ainda sem backend para estas secções
+      setAnuncios([]);
+      setTurmas([]);
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+      setAulas([]);
+      setAnuncios([]);
+      setTurmas([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchData();
+}, []);
 
   if (!user) return null;
 
@@ -45,9 +97,9 @@ export function Dashboard() {
   };
 
   const getFilteredAulas = () => {
-    if (user.role === 'ALUNO') return aulas.filter(a => a.alunoId === user.id);
-    if (user.role === 'PROFESSOR') return aulas.filter(a => a.professorId === user.id);
-    if (user.role === 'ENCARREGADO') return aulas.filter(a => a.encarregadoId === user.id);
+    if (user.role === 'ALUNO') return aulas.filter(a => a.alunoId === String(user.iduser));
+    if (user.role === 'PROFESSOR') return aulas.filter(a => a.professorId === String(user.iduser));
+    if (user.role === 'ENCARREGADO') return aulas.filter(a => a.encarregadoId === String(user.iduser));
     return aulas;
   };
 

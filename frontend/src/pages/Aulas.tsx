@@ -50,25 +50,87 @@ export function Aulas() {
   const [joinAlunoSelecionado, setJoinAlunoSelecionado] = useState<string>('');
   const [direcaoCancelarModal, setDirecaoCancelarModal] = useState<string | null>(null);
 
+  //add ultimoaulaid para facilitar ordenação e evitar problemas de aulas com data/hora iguais em ultimo
+  const mapAulaFromApi = (aula: any) => {
+  const pedido = aula.pedidodeaula || {};
+  const disponibilidade = pedido.disponibilidade || {};
+  const professor = disponibilidade.professor?.utilizador || {};
+  const encarregado = pedido.encarregadoeducacao?.utilizador || {};
+  const sala = aula.sala || pedido.sala || {};
+  const estado = aula.estadoaula?.nomeestadoaula || 'PENDENTE';
+  const alunos = aula.alunoaula || [];
+
+  const data = pedido.data ? new Date(pedido.data) : null;
+  const horaInicioDate = pedido.horainicio ? new Date(pedido.horainicio) : null;
+  const duracaoDate = pedido.duracaoaula ? new Date(pedido.duracaoaula) : null;
+
+  const horaInicio = horaInicioDate
+    ? horaInicioDate.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })
+    : '';
+
+  const duracaoMin = duracaoDate
+    ? duracaoDate.getUTCHours() * 60 + duracaoDate.getUTCMinutes()
+    : 0;
+
+  const horaFim =
+    horaInicioDate && duracaoMin
+      ? new Date(horaInicioDate.getTime() + duracaoMin * 60000).toLocaleTimeString('pt-PT', {
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : '';
+
+  return {
+    id: String(aula.idaula),
+    data: data ? data.toISOString() : '',
+    horaInicio,
+    horaFim,
+    duracao: duracaoMin,
+    status: estado,
+    professorId: professor.iduser ? String(professor.iduser) : '',
+    professorNome: professor.nome || 'Professor',
+    estudioId: sala.idsala ? String(sala.idsala) : '',
+    estudioNome: sala.nomesala ? `Sala ${sala.nomesala}` : 'Sem sala',
+    alunoId: alunos[0]?.aluno?.utilizador?.iduser
+      ? String(alunos[0].aluno.utilizador.iduser)
+      : '',
+    alunoNome: alunos.length
+      ? alunos.map((a: any) => a.aluno?.utilizador?.nome).filter(Boolean).join(', ')
+      : 'Sem alunos',
+    encarregadoId: encarregado.iduser ? String(encarregado.iduser) : '',
+    modalidade: disponibilidade.modalidadeprofessor?.modalidade?.nome || 'Sem modalidade',
+    participantes: alunos.map((a: any) => ({
+      alunoId: a.aluno?.utilizador?.iduser ? String(a.aluno.utilizador.iduser) : '',
+      alunoNome: a.aluno?.utilizador?.nome || '',
+    })),
+    observacoes: '',
+    motivoRejeicao: '',
+  };
+};
+
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [aulasRes, salasRes, usersRes] = await Promise.all([
-          api.getAulas(),
-          api.getSalas(),
-          api.getUsers()
-        ]);
-        if (aulasRes.success) setAulas(aulasRes.data);
-        if (salasRes.success) setSalas(salasRes.data);
-        if (usersRes.success) setUsers(usersRes.data);
-      } catch (error) {
-        console.error('Error fetching aulas data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, []);
+  const fetchData = async () => {
+    try {
+      const aulasRes = await api.getAulas();
+      const aulasMapeadas = (aulasRes.aulas || []).map(mapAulaFromApi);
+
+      setAulas(aulasMapeadas);
+
+      // Ainda não há backend para estas listas
+      setSalas([]);
+      setUsers([]);
+    } catch (error) {
+      console.error('Error fetching aulas data:', error);
+      setAulas([]);
+      setSalas([]);
+      setUsers([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchData();
+}, []);
 
   if (!user) return null;
 

@@ -1,5 +1,16 @@
 import jwt from "jsonwebtoken";
 
+export const normalizeRole = (role) => {
+  if (!role) return null;
+  const upperRole = role.toUpperCase();
+  return upperRole;
+};
+
+export const hasRole = (userRole, ...allowedRoles) => {
+  const normalized = normalizeRole(userRole);
+  return allowedRoles.some(r => normalizeRole(r) === normalized);
+};
+
 export async function verifyToken(req, reply) {
   try {
     const authHeader = req.headers.authorization;
@@ -9,12 +20,25 @@ export async function verifyToken(req, reply) {
     }
 
     const token = authHeader.split(" ")[1];
-
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    req.user = decoded;
+    req.user = { ...decoded, role: normalizeRole(decoded.role) };
 
   } catch (error) {
     return reply.status(401).send({ error: "Token inválido" });
   }
+}                                    
+
+export function autorizar(roles) {   
+  return async function (req, reply) {
+    await verifyToken(req, reply);
+
+    if (reply.sent) return;
+
+    if (!roles.includes(req.user?.role)) {
+      return reply.status(403).send({
+        error: `Acesso negado. Role '${req.user?.role}' não tem permissão.`,
+      });
+    }
+  };
 }
