@@ -10,5 +10,5 @@ export default async function figurinoRoutes(app, opts) {
     app.get('/:id', { preHandler: [verifyToken] }, figurinoController.getFigurinoById);
 
     // T19
-    app.post('/', { preHandler: [verifyToken] }, figurinoController.createFigurino);
+    app.post('/', { preHandler: [verifyToken] }, figurinoController.criarFigurino);
 }

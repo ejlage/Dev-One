@@ -24,20 +24,27 @@ export const buscarFigurinoPorId = async (id) => {
 };
 
 //T19
-export const criarFigurino = async (dados) => {
+export const criarFigurino = async (dados, user) => {
+  const userId = user?.iduser || 1;
+  const userRole = user?.role || 'direcao';
+
+  // Criamos o objeto de ligação apenas com o perfil do user
+  const ligacao = {};
+  if (userRole === 'direcao') ligacao.direcao = { connect: { utilizadoriduser: userId } };
+  else if (userRole === 'professor') ligacao.professor = { connect: { utilizadoriduser: userId } };
+  else ligacao.encarregadoeducacao = { connect: { utilizadoriduser: userId } };
+
   return await prisma.figurino.create({
     data: {
       quantidadedisponivel: dados.quantidade,
       quantidadetotal: dados.quantidade,
-      // Ligações Obrigatórias
-      cor: { connect: { idcor: dados.idcor } },
+      modelofigurino: { connect: { idmodelo: dados.idmodelo } },
+      genero: { connect: { idgenero: dados.idgenero } },
       tamanho: { connect: { idtamanho: dados.idtamanho } },
-      modelofigurino: { connect: { idmodelofigurino: dados.idmodelo } },
-      estadouso: { connect: { idestadouso: dados.idestado || 1 } },
-      professor: { connect: { idutilizador: 1 } },
-      genero: { connect: { idgenero: dados.idgenero || 1 } },
-      // O CAMPO QUE FALTA: Liga à direção do Admin (Rui)
-      direcao: { connect: { iddirecao: 1 } } 
+      cor: { connect: { idcor: dados.idcor } },
+      estadouso: { connect: { idestado: 1 } },
+      itemfigurino: { connect: { iditem: 1 } },
+      ...ligacao // Envia apenas UM perfil
     }
   });
 };
