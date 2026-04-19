@@ -16,9 +16,7 @@ export async function verifyToken(req, reply) {
     const authHeader = req.headers.authorization;
 
     if (!authHeader) {
-      return reply.status(401).send({
-        error: "Token não fornecido"
-      });
+      return reply.status(401).send({ error: "Token não fornecido" });
     }
 
     const token = authHeader.split(" ")[1];
@@ -28,8 +26,6 @@ export async function verifyToken(req, reply) {
     req.user = { ...decoded, role: normalizeRole(decoded.role) };
 
   } catch (error) {
-    return reply.status(401).send({
-      error: "Token inválido"
-    });
+    return reply.status(401).send({ error: "Token inválido" });
   }
 }

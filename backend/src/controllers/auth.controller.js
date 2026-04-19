@@ -9,9 +9,13 @@ export const register = async (req, reply) => {
 };
 
 export const login = async (req, reply) => {
-  const { email, password } = req.body;
+  try {
+    const { email, password } = req.body;
 
-  const result = await authService.login(email, password);
+    const result = await authService.login(email, password);
 
-  reply.send(result);
+    reply.send(result);
+  } catch (err) {
+    reply.status(401).send({ error: err.message });
+  }
 };
