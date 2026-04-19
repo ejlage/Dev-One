@@ -7,14 +7,12 @@
     "dev": "node src/server.js",
     "test": "vitest"
   },
-  "prisma": {
-    "seed": "node prisma/seedAndre.js"
-  },
   "dependencies": {
     "@fastify/cors": "^8.5.0",
     "@prisma/client": "^5.22.0",
     "bcrypt": "^5.1.0",
     "dotenv": "^16.0.0",
+    "express": "^5.2.1",
     "fastify": "^4.0.0",
     "jsonwebtoken": "^9.0.0"
   },
@@ -28,6 +26,10 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
-  "type": "module"
+"license": "ISC",
+"type": "module",
+"prisma": {
+  "seed": "node prisma/seed.js"
 }
+}
+
