@@ -44,7 +44,7 @@ model anuncio {
   encarregadoeducacaoutilizadoriduser Int
   professorutilizadoriduser           Int
   figurino                            figurino            @relation(fields: [figurinoidfigurino], references: [idfigurino], onDelete: NoAction, onUpdate: NoAction, map: "fkanuncio206012")
-  encarregadoeducacao                 encarregadoeducacao @relation(fields: [encarregadoeducacaoutilizadoriduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction, map: "fkanuncio342590")
+  encarregadoeducacao                 encarregadoeducacao? @relation(fields: [encarregadoeducacaoutilizadoriduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction, map: "fkanuncio342590")
   estado                              estado              @relation(fields: [estadoidestado], references: [idestado], onDelete: NoAction, onUpdate: NoAction, map: "fkanuncio57402")
   direcao                             direcao             @relation(fields: [direcaoutilizadoriduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction, map: "fkanuncio631724")
   professor                           professor           @relation(fields: [professorutilizadoriduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction, map: "fkanuncio953604")
@@ -133,19 +133,19 @@ model figurino {
   generoidgenero                      Int
   tamanhoidtamanho                    Int
   coridcor                            Int
-  estadousoidestado                   Int
-  encarregadoeducacaoutilizadoriduser Int
-  direcaoutilizadoriduser             Int
-  professorutilizadoriduser           Int
+  estadousoidestado                   Int?
+  encarregadoeducacaoutilizadoriduser Int?
+  direcaoutilizadoriduser             Int?
+  professorutilizadoriduser           Int?
   itemfigurinoiditem                  Int
   anuncio                             anuncio[]
-  estadouso                           estadouso           @relation(fields: [estadousoidestado], references: [idestado], onDelete: NoAction, onUpdate: NoAction, map: "fkfigurino733126")
+  estadouso                           estadouso?           @relation(fields: [estadousoidestado], references: [idestado], onDelete: NoAction, onUpdate: NoAction, map: "fkfigurino733126")
   tamanho                             tamanho             @relation(fields: [tamanhoidtamanho], references: [idtamanho], onDelete: NoAction, onUpdate: NoAction, map: "fkfigurino742941")
-  professor                           professor           @relation(fields: [professorutilizadoriduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction, map: "fkfigurino753753")
+  professor                           professor?           @relation(fields: [professorutilizadoriduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction, map: "fkfigurino753753")
   cor                                 cor                 @relation(fields: [coridcor], references: [idcor], onDelete: NoAction, onUpdate: NoAction, map: "fkfigurino779940")
   genero                              genero              @relation(fields: [generoidgenero], references: [idgenero], onDelete: NoAction, onUpdate: NoAction, map: "fkfigurino823907")
-  direcao                             direcao             @relation(fields: [direcaoutilizadoriduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction, map: "fkfigurino831575")
-  encarregadoeducacao                 encarregadoeducacao @relation(fields: [encarregadoeducacaoutilizadoriduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction, map: "fkfigurino857260")
+  direcao                             direcao?             @relation(fields: [direcaoutilizadoriduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction, map: "fkfigurino831575")
+  encarregadoeducacao                 encarregadoeducacao? @relation(fields: [encarregadoeducacaoutilizadoriduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction, map: "fkfigurino857260")
   modelofigurino                      modelofigurino      @relation(fields: [modelofigurinoidmodelo], references: [idmodelo], onDelete: NoAction, onUpdate: NoAction, map: "fkfigurino865766")
   itemfigurino                        itemfigurino        @relation(fields: [itemfigurinoiditem], references: [iditem], onDelete: NoAction, onUpdate: NoAction, map: "fkfigurino940616")
 }
