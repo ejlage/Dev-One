@@ -23,13 +23,13 @@ export async function remarcarAula(idaula, data, horainicio, salaidsala, motivo)
 
   const pedido = aula.pedidodeaula;
 
-  // Valida data futura
+  //Valida data futura
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
   if (new Date(data) < hoje)
     throw { statusCode: 400, message: "Não é possível remarcar para uma data no passado." };
 
-  // Mantém duração original — valida RF05
+  //Mantem duração original
   const duracaoaulaMin = timeParaMinutos(pedido.duracaoaula);
   if (duracaoaulaMin < 30 || duracaoaulaMin > 120)
     throw { statusCode: 400, message: `duracaoaula=${duracaoaulaMin} min fora do intervalo permitido (30-120 min) (RF05).` };
@@ -39,14 +39,14 @@ export async function remarcarAula(idaula, data, horainicio, salaidsala, motivo)
   const fimMin          = inicioMin + duracaoaulaMin;
   const salaidsalaFinal = salaidsala ? Number(salaidsala) : pedido.salaidsala;
 
-  // RF06 — conflito de sala
+  //conflito de sala
   const conflitoSala = await existeConflitoSala(
     salaidsalaFinal, new Date(data), inicioMin, fimMin, pedido.idpedidoaula
   );
   if (conflitoSala)
     throw { statusCode: 409, message: `sala.idsala=${salaidsalaFinal} já está ocupada no novo horário (RF06).` };
 
-  // RF06 — conflito de professor
+  //conflito de professor
   const conflitoProf = await existeConflitoProf(
     pedido.disponibilidade.professorutilizadoriduser, new Date(data), inicioMin, fimMin, pedido.idpedidoaula
   );
@@ -57,7 +57,7 @@ export async function remarcarAula(idaula, data, horainicio, salaidsala, motivo)
     `1970-01-01T${String(ih).padStart(2, "0")}:${String(im).padStart(2, "0")}:00`
   );
 
-  // ST62 — atualiza data, horainicio e salaidsala na BD
+  //atualiza data, horainicio e salaidsala na BD
   await prisma.pedidodeaula.update({
     where: { idpedidoaula: pedido.idpedidoaula },
     data: { data: new Date(data), horainicio: horainicioBD, salaidsala: salaidsalaFinal },
@@ -67,7 +67,7 @@ export async function remarcarAula(idaula, data, horainicio, salaidsala, motivo)
     data: { salaidsala: salaidsalaFinal },
   });
 
-  // RF07 — volta a PENDENTE, direção tem de reconfirmar
+  //volta a PENDENTE, direção tem de reconfirmar
   const estadoPendente = await prisma.estadoaula.findFirst({
     where: { nomeestadoaula: "PENDENTE" },
   });
@@ -84,7 +84,7 @@ export async function remarcarAula(idaula, data, horainicio, salaidsala, motivo)
     include: aulaInclude,
   });
 
-  // ST63 — notifica encarregado
+  //notificar encarregado
   const utilizador = pedido.encarregadoeducacao.utilizador;
   await notificarRemarcacao({
     email: utilizador.email,

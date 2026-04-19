@@ -1,6 +1,5 @@
 // Controller para aulas T11-T16
 
-
 import {
   getSalasDisponiveis,
   associarSalaAula,
