@@ -32,9 +32,14 @@ export const getFigurinoById = async (request, reply) => {
 };
 
 //T19
-export const createFigurino = async (request, reply) => {
+export const criarFigurino = async (request, reply) => {
   try {
-    const novoFigurino = await figurinoService.criarFigurino(request.body);
+    // O utilizador logado vem do middleware de autenticação (verifyToken)
+    const utilizadorLogado = request.user; 
+    
+    // Passamos os dados do body e o utilizador logado
+    const novoFigurino = await figurinoService.criarFigurino(request.body, utilizadorLogado);
+    
     return reply.code(201).send({ 
       message: "Figurino criado com sucesso!", 
       data: novoFigurino 
