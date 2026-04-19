@@ -124,7 +124,7 @@ const mapAulaFromApi = (aula: any) => {
     const anunciosRejeitados = meusAnuncios.filter(a => a.status === 'REJEITADO').length;
 
     // Turmas do professor
-    const minhasTurmas = turmas.filter(t => t.professorId === user.id);
+    const minhasTurmas = turmas.filter(t => t.professorId === String(user.iduser));
     const turmasAbertas = minhasTurmas.filter(t => t.status === 'ABERTA').length;
     const totalAlunosTurmas = minhasTurmas.reduce((acc, t) => acc + t.alunosInscritos.length, 0);
 
