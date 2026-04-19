@@ -1,5 +1,13 @@
 # Sistema de Gestão de Aulas, Figurinos e Eventos
 
+[![React](https://img.shields.io/badge/Frontend-React-61DAFB?logo=react)](https://react.dev/)
+[![Node.js](https://img.shields.io/badge/Backend-Node.js-339933?logo=nodedotjs)](https://nodejs.org/)
+[![Fastify](https://img.shields.io/badge/Framework-Fastify-000000?logo=fastify)](https://fastify.dev/)
+[![REST API](https://img.shields.io/badge/API-REST-red?logo=json)](https://restfulapi.net/)
+[![PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL-336791?logo=postgresql)](https://www.postgresql.org/)
+[![Prisma](https://img.shields.io/badge/ORM-Prisma-2D3748?logo=prisma)](https://www.prisma.io/)
+![Status](https://img.shields.io/badge/Status-Academic_Project-fe7d37)
+
 ## 1. Introdução
 
 O presente projeto tem como objetivo o desenvolvimento de uma aplicação web para a gestão de aulas de coaching, gestão de figurinos e divulgação de eventos, permitindo a interação entre diferentes tipos de utilizadores, nomeadamente alunos, encarregados de educação, professores e direção.
@@ -8,14 +16,13 @@ A aplicação visa responder às necessidades identificadas no contexto da organ
 
 ---
 
-## 2. Objetivos do Sistema
+## 2. Funcionalidades Principais
 
-- Permitir autenticação segura de utilizadores
-- Gerir pedidos e agendamento de aulas
-- Controlar disponibilidade de professores e salas
-- Gerir inventário e reservas de figurinos
-- Disponibilizar e divulgar eventos
-- Garantir comunicação eficiente entre os intervenientes
+* **Autenticação Segura:** Login diferenciado por papéis (RBAC).
+* **Gestão de Aulas:** Marcação, agendamento e consulta de horários.
+* **Gestão de Recursos:** Inventário e controlo de reservas de figurinos.
+* **Agenda de Eventos:** Divulgação e gestão de eventos organizacionais.
+* **Comunicação:** Interface direta entre direção, docentes e alunos.
 
 ---
 
@@ -127,7 +134,7 @@ npm run dev
 
 ## 9. Testes
 
-- Backend: Vitest + Supertest
+- Backend: Vitest
 - Frontend: React Testing Library
 
 ---
