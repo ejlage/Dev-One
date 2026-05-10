@@ -1,0 +1,946 @@
+{
+  "info": {
+    "name": "EntArtes — Fluxos BPMN",
+    "description": "Coleção Postman com os 4 fluxos BPMN completos da Escola de Dança Ent'Artes.\n\nPré-requisitos:\n1. Backend em http://localhost:3000\n2. Seed SQL executado (backend/prisma/seed_completa.sql)\n3. Base de dados PostgreSQL com dados de teste\n\nFluxos:\n- BPMN 1: Pedido de Aula (EE → Direção)\n- BPMN 2: Remarcação de Aula (Direção → Professor → EE)\n- BPMN 3: Aluguer de Figurino (EE → Direção)\n- BPMN 4: Criar Anúncio (EE → Direção)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "BPMN 1 — Pedido de Aula",
+      "description": "Fluxo: Encarregado consulta disponibilidades → submete pedido → Direção aprova → aula CONFIRMADA",
+      "item": [
+        {
+          "name": "1.1 Login Encarregado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login OK', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.true;",
+                  "  pm.expect(json.token).to.not.be.empty;",
+                  "  pm.environment.set('token_encarregado', json.token);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email_encarregado}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "1.2 Consultar Disponibilidades",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Disponibilidades OK', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.true;",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    const hoje = new Date().toISOString().split('T')[0];",
+                  "    const futuro = json.data.find(s => s.data > hoje && s.maxDuracao > 0) || json.data[0];",
+                  "    pm.environment.set('slot_id', futuro.id);",
+                  "    pm.environment.set('slot_data', futuro.data);",
+                  "    pm.environment.set('slot_maxDuracao', String(futuro.maxDuracao || 60));",
+                  "    pm.environment.set('slot_professorId', futuro.professorId || '');",
+                  "    pm.environment.set('slot_estudioId', futuro.estudioId || '1');",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/public/disponibilidades",
+              "host": ["{{base_url}}"],
+              "path": ["api", "public", "disponibilidades"]
+            }
+          }
+        },
+        {
+          "name": "1.3 Criar Pedido de Aula",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Pedido criado', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.true;",
+                  "  const id = json.data?.idpedidoaula || json.data?.[0]?.idpedidoaula || json.data?.id || '';",
+                  "  pm.expect(id).to.not.be.empty;",
+                  "  pm.environment.set('pedido_id', String(id));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token_encarregado}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"data\": \"{{slot_data}}\",\n  \"horainicio\": \"10:00\",\n  \"duracaoaula\": {{slot_maxDuracao}},\n  \"disponibilidade_mensal_id\": {{slot_id}},\n  \"salaidsala\": {{slot_estudioId}},\n  \"privacidade\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/encarregado/aulas",
+              "host": ["{{base_url}}"],
+              "path": ["api", "encarregado", "aulas"]
+            }
+          }
+        },
+        {
+          "name": "1.4 Login Direção",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login OK', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.true;",
+                  "  pm.environment.set('token_direcao', json.token);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email_direcao}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "1.5 Listar Pedidos Pendentes (Direção)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Pedidos pendentes listados', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.true;",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  const pendentes = json.data.filter(a => a.status === 'Pendente' || a.status === 'PENDENTE');",
+                  "  if (pendentes.length > 0) {",
+                  "    pm.environment.set('pedido_id', pendentes[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token_direcao}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/direcao/aulas/pending",
+              "host": ["{{base_url}}"],
+              "path": ["api", "direcao", "aulas", "pending"]
+            }
+          }
+        },
+        {
+          "name": "1.6 Aprovar Pedido de Aula",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Pedido aprovado', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token_direcao}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"salaId\": {{sala_id}}\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/direcao/aulas/{{pedido_id}}/approve",
+              "host": ["{{base_url}}"],
+              "path": ["api", "direcao", "aulas", "{{pedido_id}}", "approve"]
+            }
+          }
+        },
+        {
+          "name": "1.7 Verificar Aulas (todas)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Aulas listadas', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.true;",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  const confirmada = json.data.find(a => a.id === pm.environment.get('pedido_id'));",
+                  "  if (confirmada) {",
+                  "    pm.expect(['CONFIRMADA', 'Confirmada', 'Confirmado']).to.include(confirmada.status);",
+                  "  }",
+                  "  console.log('Total de aulas:', json.data.length);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token_direcao}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/aulas/all",
+              "host": ["{{base_url}}"],
+              "path": ["api", "aulas", "all"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "BPMN 2 — Remarcação de Aula",
+      "description": "Fluxo: Encarregado submete pedido → Direção propõe nova data → Professor aceita → EE aceita → aula remarcada",
+      "item": [
+        {
+          "name": "2.1 Login Encarregado + Criar Pedido",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login OK', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.true;",
+                  "  pm.environment.set('token_encarregado', json.token);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email_encarregado}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "2.2 Buscar Slot Disponível",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Disponibilidades OK', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.true;",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  const hoje = new Date().toISOString().split('T')[0];",
+                  "  const futuro = json.data.find(s => s.data > hoje);",
+                  "  if (!futuro) throw new Error('Sem slots futuros');",
+                  "  pm.environment.set('slot_id', futuro.id);",
+                  "  pm.environment.set('slot_data', futuro.data);",
+                  "  pm.environment.set('slot_maxDuracao', String(futuro.maxDuracao || 60));",
+                  "  pm.environment.set('slot_estudioId', futuro.estudioId || '1');",
+                  "})"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/public/disponibilidades",
+              "host": ["{{base_url}}"],
+              "path": ["api", "public", "disponibilidades"]
+            }
+          }
+        },
+        {
+          "name": "2.3 Encarregado Cria Pedido",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Pedido criado', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.true;",
+                  "  const id = json.data?.idpedidoaula || json.data?.[0]?.idpedidoaula || json.data?.id || '';",
+                  "  pm.expect(id).to.not.be.empty;",
+                  "  pm.environment.set('pedido_id', String(id));",
+                  "})"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token_encarregado}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"data\": \"{{slot_data}}\",\n  \"horainicio\": \"10:00\",\n  \"duracaoaula\": {{slot_maxDuracao}},\n  \"disponibilidade_mensal_id\": {{slot_id}},\n  \"salaidsala\": {{slot_estudioId}},\n  \"privacidade\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/encarregado/aulas",
+              "host": ["{{base_url}}"],
+              "path": ["api", "encarregado", "aulas"]
+            }
+          }
+        },
+        {
+          "name": "2.4 Login Direção",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login OK', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.true;",
+                  "  pm.environment.set('token_direcao', json.token);",
+                  "})"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email_direcao}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "2.5 Direção Propõe Remarcação",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Remarcação proposta', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.true;",
+                  "})"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token_direcao}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"data\": \"{{slot_data}}\",\n  \"hora\": \"11:00\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/aulas/{{pedido_id}}/remarcar",
+              "host": ["{{base_url}}"],
+              "path": ["api", "aulas", "{{pedido_id}}", "remarcar"]
+            }
+          }
+        },
+        {
+          "name": "2.6 Login Professor",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login OK', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.true;",
+                  "  pm.environment.set('token_professor', json.token);",
+                  "})"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email_professor}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "2.7 Professor Aceita Remarcação",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Professor aceitou', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.true;",
+                  "})"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token_professor}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"aceitar\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/aulas/{{pedido_id}}/responder-professor",
+              "host": ["{{base_url}}"],
+              "path": ["api", "aulas", "{{pedido_id}}", "responder-professor"]
+            }
+          }
+        },
+        {
+          "name": "2.8 Login Encarregado (novamente)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login OK', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.true;",
+                  "  pm.environment.set('token_encarregado', json.token);",
+                  "})"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email_encarregado}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "2.9 Encarregado Aceita Remarcação",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('EE aceitou remarcação', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.true;",
+                  "})"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token_encarregado}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"aceitar\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/aulas/{{pedido_id}}/responder-encarregado",
+              "host": ["{{base_url}}"],
+              "path": ["api", "aulas", "{{pedido_id}}", "responder-encarregado"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "BPMN 3 — Aluguer de Figurino",
+      "description": "Fluxo: Encarregado solicita aluguer de figurino → Direção aprova reserva",
+      "item": [
+        {
+          "name": "3.1 Login Encarregado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login OK', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.true;",
+                  "  pm.environment.set('token_encarregado', json.token);",
+                  "})"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email_encarregado}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "3.2 Listar Anúncios (Encarregado)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Anúncios listados', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.true;",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  const aluguer = json.data.find(a => a.tipoTransacao === 'ALUGUER' && a.status === 'APROVADO' && (a.quantidade > 0 || a.stock > 0));",
+                  "  if (aluguer) {",
+                  "    pm.environment.set('anuncio_id', String(aluguer.id));",
+                  "    pm.environment.set('figurino_id', String(aluguer.figurinoId || aluguer.figurinoidfigurino || ''));",
+                  "  }",
+                  "})"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token_encarregado}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/anuncios",
+              "host": ["{{base_url}}"],
+              "path": ["api", "anuncios"]
+            }
+          }
+        },
+        {
+          "name": "3.3 Solicitar Aluguer de Figurino",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Reserva criada', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.true;",
+                  "  const id = json.data?.idtransacao || json.data?.id || '';",
+                  "  pm.expect(id).to.not.be.empty;",
+                  "  pm.environment.set('reserva_id', String(id));",
+                  "})"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token_encarregado}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"anuncioidanuncio\": {{anuncio_id}},\n  \"quantidade\": 1,\n  \"datainicio\": \"{{slot_data}}\",\n  \"datafim\": \"2026-12-31\",\n  \"encarregadoeducacaoutilizadoriduser\": 6\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/aluguer",
+              "host": ["{{base_url}}"],
+              "path": ["api", "aluguer"]
+            }
+          }
+        },
+        {
+          "name": "3.4 Login Direção",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login OK', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.true;",
+                  "  pm.environment.set('token_direcao', json.token);",
+                  "})"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email_direcao}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "3.5 Listar Estados (Direção)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Estados OK', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.true;",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  const aprovado = json.data.find(e => e.tipoestado === 'Aprovado' || e.nome === 'Aprovado');",
+                  "  if (aprovado) pm.environment.set('estado_aprovado', String(aprovado.idestado || aprovado.id));",
+                  "})"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token_direcao}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/aluguer/estados",
+              "host": ["{{base_url}}"],
+              "path": ["api", "aluguer", "estados"]
+            }
+          }
+        },
+        {
+          "name": "3.6 Aprovar Reserva de Figurino",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Reserva aprovada', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.true;",
+                  "})"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token_direcao}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"estadoidestado\": {{estado_aprovado}}\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/aluguer/{{reserva_id}}/avaliar",
+              "host": ["{{base_url}}"],
+              "path": ["api", "aluguer", "{{reserva_id}}", "avaliar"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "BPMN 4 — Criar Anúncio de Figurino",
+      "description": "Fluxo: Encarregado cria anúncio → Direção aprova → anúncio APROVADO no Marketplace",
+      "item": [
+        {
+          "name": "4.1 Login Encarregado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login OK', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.true;",
+                  "  pm.environment.set('token_encarregado', json.token);",
+                  "})"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email_encarregado}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "4.2 Listar Figurinos (Encarregado)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Figurinos listados', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.true;",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    const fig = json.data[0];",
+                  "    pm.environment.set('figurino_id', String(fig.idfigurino || fig.id));",
+                  "  }",
+                  "})"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token_encarregado}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/figurinos",
+              "host": ["{{base_url}}"],
+              "path": ["api", "figurinos"]
+            }
+          }
+        },
+        {
+          "name": "4.3 Criar Anúncio (Encarregado)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Anúncio criado', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.true;",
+                  "  const id = json.data?.idanuncio || json.data?.id || '';",
+                  "  pm.expect(id).to.not.be.empty;",
+                  "  pm.environment.set('anuncio_id', String(id));",
+                  "})"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token_encarregado}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"figurinoidfigurino\": {{figurino_id}},\n  \"tipotransacao\": \"ALUGUER\",\n  \"valor\": 25,\n  \"datainicio\": \"2026-05-10\",\n  \"datafim\": \"2026-12-31\",\n  \"quantidade\": 1,\n  \"encarregadoeducacaoutilizadoriduser\": 6\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/anuncios",
+              "host": ["{{base_url}}"],
+              "path": ["api", "anuncios"]
+            }
+          }
+        },
+        {
+          "name": "4.4 Login Direção",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login OK', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.true;",
+                  "  pm.environment.set('token_direcao', json.token);",
+                  "})"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email_direcao}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "4.5 Verificar Anúncios (Direção)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Anúncios listados', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.true;",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  const anuncio = json.data.find(a => String(a.id) === pm.environment.get('anuncio_id'));",
+                  "  if (anuncio) {",
+                  "    console.log('Status:', anuncio.status);",
+                  "  }",
+                  "})"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token_direcao}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/anuncios",
+              "host": ["{{base_url}}"],
+              "path": ["api", "anuncios"]
+            }
+          }
+        },
+        {
+          "name": "4.6 Aprovar Anúncio",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Anúncio aprovado', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.true;",
+                  "})"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token_direcao}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/anuncios/{{anuncio_id}}/approve",
+              "host": ["{{base_url}}"],
+              "path": ["api", "anuncios", "{{anuncio_id}}", "approve"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

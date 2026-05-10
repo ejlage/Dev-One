@@ -1,0 +1,26 @@
+# Systemd service file for Ent'Artes Backend
+# Instalação: sudo cp entartes-backend.service /etc/systemd/system/
+# Ativar:     sudo systemctl daemon-reload
+#             sudo systemctl enable entartes-backend
+#             sudo systemctl start entartes-backend
+# Ver:        sudo systemctl status entartes-backend
+
+[Unit]
+Description=Ent'Artes Backend API (Fastify + Prisma)
+Documentation=https://github.com/entartes/entartes
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=ugrt
+WorkingDirectory=/home/ugrt/Documents/Opencode/Entartes/backend
+ExecStart=/usr/bin/node src/server.js
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:/home/ugrt/Documents/Opencode/Entartes/backend/logs/backend.log
+StandardError=append:/home/ugrt/Documents/Opencode/Entartes/backend/logs/backend.log
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target

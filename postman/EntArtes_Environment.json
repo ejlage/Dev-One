@@ -1,0 +1,119 @@
+{
+  "name": "EntArtes",
+  "values": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "frontend_url",
+      "value": "http://localhost:5173",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "token_encarregado",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "token_professor",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "token_direcao",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "token_aluno",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "email_direcao",
+      "value": "direcao@entartes.pt",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "email_professor",
+      "value": "joao.santos@entartes.pt",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "email_encarregado",
+      "value": "pedro.oliveira@email.pt",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "email_aluno",
+      "value": "miguel.silva@email.pt",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "password",
+      "value": "password123",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "pedido_id",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "aula_id",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "anuncio_id",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "reserva_id",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "figurino_id",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "slot_id",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "nova_data",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "sala_id",
+      "value": "1",
+      "type": "default",
+      "enabled": true
+    }
+  ]
+}
