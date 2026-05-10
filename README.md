@@ -60,6 +60,7 @@ project-root/
 ├── frontend/
 ├── backend/
 ├── docs/
+├── e2e/
 ├── postman/
 └── scripts/
 ```
