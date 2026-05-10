@@ -30,10 +30,10 @@ export default async function anunciosRoutes(fastify) {
       security: [{ bearerAuth: [] }],
       body: {
         type: "object",
-        required: ["titulo", "descricao", "tipotransacao", "valor", "datainicio", "datafim", "figurinoidfigurino"],
+        required: ["tipotransacao", "datainicio", "datafim", "figurinoidfigurino"],
         properties: {
-          titulo: { type: "string" },
-          descricao: { type: "string" },
+          titulo: { type: "string", description: "Ignorado (gerado automaticamente)" },
+          descricao: { type: "string", description: "Ignorado (gerado automaticamente)" },
           tipotransacao: { type: "string" },
           valor: { type: "number" },
           datainicio: { type: "string" },
@@ -213,7 +213,8 @@ export default async function anunciosRoutes(fastify) {
     if (!hasRole(req.user.normalizedRoles, "DIRECAO")) {
       return reply.status(403).send({ success: false, error: "Acesso negado" });
     }
-    req.body = { ...(req.body || {}), decisao: 'rejeitar' };
+    const body = req.body || {};
+    req.body = { decisao: 'rejeitar', motivo: body.motivorejeicao || body.motivo };
     return anunciosController.avaliarAnuncio(req, reply);
   });
 

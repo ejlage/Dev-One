@@ -24,7 +24,7 @@ export const getEventoById = async (req, reply) => {
 
 export const createEvento = async (req, reply) => {
   try {
-    const evento = await eventosService.createEvento(req.body, req.user.id);
+    const evento = await eventosService.createEvento(req.body, req.user.id, req.user.nome);
     return reply.status(201).send({ success: true, data: evento });
   } catch (error) {
     return reply.status(400).send({ success: false, error: error.message });
@@ -34,7 +34,7 @@ export const createEvento = async (req, reply) => {
 export const updateEvento = async (req, reply) => {
   try {
     const { id } = req.params;
-    const evento = await eventosService.updateEvento(parseInt(id), req.body);
+    const evento = await eventosService.updateEvento(parseInt(id), req.body, req.user.id, req.user.nome);
     return reply.send({ success: true, data: evento });
   } catch (error) {
     return reply.status(400).send({ success: false, error: error.message });
@@ -44,7 +44,7 @@ export const updateEvento = async (req, reply) => {
 export const deleteEvento = async (req, reply) => {
   try {
     const { id } = req.params;
-    await eventosService.deleteEvento(parseInt(id));
+    await eventosService.deleteEvento(parseInt(id), req.user.id, req.user.nome);
     return reply.send({ success: true, data: { message: "Evento eliminado com sucesso" } });
   } catch (error) {
     return reply.status(400).send({ success: false, error: error.message });
@@ -54,7 +54,7 @@ export const deleteEvento = async (req, reply) => {
 export const publishEvento = async (req, reply) => {
   try {
     const { id } = req.params;
-    const evento = await eventosService.publishEvento(parseInt(id));
+    const evento = await eventosService.publishEvento(parseInt(id), req.user.id, req.user.nome);
     return reply.send({ success: true, data: evento });
   } catch (error) {
     return reply.status(400).send({ success: false, error: error.message });

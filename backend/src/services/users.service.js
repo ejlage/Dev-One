@@ -251,10 +251,11 @@ export const updateUser = async (id, data, auditUserId = null, auditUserNome = '
     updateData.role = roleValue;
   }
   if (password) updateData.password = await bcrypt.hash(password, 10);
-  if (estado !== undefined || role !== undefined) {
-    if (estado === false || rolesChanged) {
-      updateData.tokenVersion = { increment: 1 };
-    }
+  if (estado !== undefined) {
+    updateData.estado = estado;
+  }
+  if (estado === false || rolesChanged) {
+    updateData.tokenVersion = { increment: 1 };
   }
 
   const user = await prisma.utilizador.update({
@@ -299,8 +300,8 @@ const parseRoleFromDb = (roleValue) => {
   return roleValue;
 };
 
-// Deletes user
-export const deleteUser = async (id) => {
+// Soft-deletes user (keeps in DB for audit, just marks as inactive)
+export const deleteUser = async (id, auditUserId = null, auditUserNome = '') => {
   const existingUser = await prisma.utilizador.findUnique({
     where: { iduser: id }
   });
@@ -309,21 +310,17 @@ export const deleteUser = async (id) => {
     throw new Error("Utilizador não encontrado");
   }
 
-  const userRole = Array.isArray(existingUser.role) ? existingUser.role[0] : existingUser.role;
-
-  if (userRole === 'PROFESSOR') {
-    await prisma.modalidadeprofessor.deleteMany({ where: { professorutilizadoriduser: id } });
-    await prisma.$queryRaw`DELETE FROM disponibilidade_mensal WHERE professorutilizadoriduser = ${id}`;
-    await prisma.professor.delete({ where: { utilizadoriduser: id } });
-  } else if (userRole === 'ALUNO') {
-    await prisma.aluno.deleteMany({ where: { utilizadoriduser: id } });
-  } else if (userRole === 'ENCARREGADO') {
-    await prisma.encarregadoeducacao.deleteMany({ where: { utilizadoriduser: id } });
-  }
-
-  await prisma.utilizador.delete({
-    where: { iduser: id }
+  await prisma.utilizador.update({
+    where: { iduser: id },
+    data: {
+      estado: false,
+      tokenVersion: { increment: 1 },
+    }
   });
+
+  try {
+    await createAuditLog(auditUserId ? parseInt(auditUserId) : null, auditUserNome || 'Direção', 'DELETE', 'Utilizador', id, `Utilizador '${existingUser.nome}' eliminado (soft delete)`);
+  } catch (_) {}
 
   return { message: "Utilizador eliminado com sucesso" };
 };

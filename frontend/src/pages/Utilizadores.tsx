@@ -223,6 +223,17 @@ export function Utilizadores() {
     }
   };
 
+  const escapeHtml = (str: string | string[] | null | undefined): string => {
+    if (str == null) return '';
+    const s = Array.isArray(str) ? str.join(', ') : str;
+    return s
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  };
+
   const handlePrint = () => {
     const usersToPrint = getUsersFiltrados();
     
@@ -262,10 +273,10 @@ export function Utilizadores() {
             ${usersToPrint.map((user, index) => `
               <tr>
                 <td>${index + 1}</td>
-                <td>${user.nome}</td>
-                <td>${user.email}</td>
-                <td>${user.telemovel || '-'}</td>
-                <td>${user.role}</td>
+                <td>${escapeHtml(user.nome)}</td>
+                <td>${escapeHtml(user.email)}</td>
+                <td>${escapeHtml(user.telemovel) || '-'}</td>
+                <td>${escapeHtml(String(user.role))}</td>
                 <td class="${user.estado !== false ? 'estado-ativo' : 'estado-inativo'}">${user.estado !== false ? 'Ativo' : 'Inativo'}</td>
               </tr>
             `).join('')}

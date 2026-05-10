@@ -43,7 +43,8 @@ describe('Edge: SQL Injection', () => {
       method: 'POST', url: '/api/auth/forgot-password',
       payload: { email: "' OR 1=1 --" },
     });
-    expect(res.statusCode).toBe(404);
+    // Schema validation (format: email) rejects invalid format before handler → 400
+    expect(res.statusCode).toBe(400);
   });
 });
 

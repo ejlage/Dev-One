@@ -206,14 +206,45 @@ export const avaliarPedido = async (id, decisao, salaId, motivo) => {
     if (salaId) {
       await prisma.$queryRaw`UPDATE pedidodeaula SET salaidsala = ${parseInt(salaId)} WHERE idpedidoaula = ${parseInt(id)}`;
     }
-    const result = await prisma.$queryRaw`UPDATE pedidodeaula SET estadoidestado = ${estadoConfirmada[0].idestado} WHERE idpedidoaula = ${parseInt(id)} RETURNING idpedidoaula, data, horainicio, estadoidestado`;
+    await prisma.$queryRaw`UPDATE pedidodeaula SET estadoidestado = ${estadoConfirmada[0].idestado} WHERE idpedidoaula = ${parseInt(id)}`;
+
+    // Create aula record for presences and management
+    const estadoAulaConfirmada = await prisma.estadoaula.findFirst({
+      where: { nomeestadoaula: { equals: 'CONFIRMADA', mode: 'insensitive' } },
+    });
+    let novaAula = null;
+    if (estadoAulaConfirmada) {
+      novaAula = await prisma.aula.create({
+        data: {
+          pedidodeaulaidpedidoaula: parseInt(id),
+          salaidsala: pedido.salaidsala,
+          estadoaulaidestadoaula: estadoAulaConfirmada.idestadoaula,
+        },
+      });
+    }
+
+    // P-01: Propagate alunos from alunopedidoaula to alunoaula
+    if (novaAula) {
+      const alunosDoPedido = await prisma.alunopedidoaula.findMany({
+        where: { pedidodeaulaidpedidoaula: parseInt(id) },
+      });
+      for (const ap of alunosDoPedido) {
+        await prisma.alunoaula.create({
+          data: {
+            alunoidaluno: ap.alunoidaluno,
+            aulaidaula: novaAula.idaula,
+          },
+        });
+      }
+    }
+
     if (pedido?.encarregadoeducacao) {
       await createNotificacao(pedido.encarregadoeducacao.utilizadoriduser, `✅ A sua aula foi aprovada! Data: ${pedido.data} às ${pedido.horainicio}`, 'AULA_APROVADA');
     }
     if (pedido?.disponibilidade_mensal?.professor) {
       await createNotificacao(pedido.disponibilidade_mensal.professor.utilizadoriduser, `📅 Nova aula confirmada para ${pedido.data} às ${pedido.horainicio}`, 'AULA_CONFIRMADA');
     }
-    return result;
+    return { success: true };
   }
   if (decisao === 'rejeitar') {
     const estadoRejeitada = await prisma.$queryRaw`SELECT idestado FROM estado WHERE LOWER(tipoestado) = 'rejeitado'`;

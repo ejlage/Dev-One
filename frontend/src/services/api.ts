@@ -453,7 +453,7 @@ class ApiService {
   }
 
   async updateAnuncio(id: number, data: {
-    valor?: number; datainicio?: string; datafim?: string; quantidade?: number;
+    valor?: number; datainicio?: string; datafim?: string; quantidade?: number; estadoidestado?: number;
   }) {
     return this.request<{ success: boolean; data: any }>(`/api/anuncios/${id}`, {
       method: 'PUT',
@@ -558,6 +558,25 @@ async avaliarPedidoReserva(id: number, decisao: string, estadoidestado?: number,
     });
   }
 
+  async confirmarReserva(id: number) {
+    return this.request<{ success: boolean; data: any }>(`/api/aluguer/${id}/confirmar`, {
+      method: 'POST',
+    });
+  }
+
+  async cancelarReserva(id: number, motivo?: string) {
+    return this.request<{ success: boolean; data: any }>(`/api/aluguer/${id}/cancelar-reserva`, {
+      method: 'POST',
+      ...(motivo !== undefined && { body: JSON.stringify({ motivo }) }),
+    });
+  }
+
+  async devolverAluguer(id: number) {
+    return this.request<{ success: boolean; data: any }>(`/api/aluguer/${id}/devolver`, {
+      method: 'PATCH',
+    });
+  }
+
   async deleteReserva(id: number) {
     return this.request<{ success: boolean }>(`/api/aluguer/${id}`, {
       method: 'DELETE',
@@ -587,7 +606,7 @@ async avaliarPedidoReserva(id: number, decisao: string, estadoidestado?: number,
   async remarcarAula(id: number, data: string, hora: string) {
     return this.request<{ success: boolean; data: any }>(`/api/aulas/${id}/remarcar`, {
       method: 'PUT',
-      body: JSON.stringify({ data, hora }),
+      body: JSON.stringify({ novadata: data, novaHora: hora }),
     });
   }
 

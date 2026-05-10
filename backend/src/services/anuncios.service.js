@@ -14,7 +14,7 @@ const ANUNCIO_INCLUDE = {
 
 export const mapAnuncio = (a) => {
   const estadoStr = (a.estado?.tipoestado || '').toLowerCase();
-  const statusMap = { aprovado: 'APROVADO', pendente: 'PENDENTE', rejeitado: 'REJEITADO' };
+  const statusMap = { aprovado: 'APROVADO', pendente: 'PENDENTE', rejeitado: 'REJEITADO', inativo: 'INATIVO' };
   const status = statusMap[estadoStr] || estadoStr.toUpperCase();
 
   const vendedorUser = a.encarregadoeducacao?.utilizador || a.professor?.utilizador;
@@ -42,11 +42,32 @@ export const mapAnuncio = (a) => {
     stockAssociadoId: String(a.figurinoidfigurino),
     quantidade: a.quantidade,
     motivoRejeicao: a.motivorejeicao || null,
+    criadoPorDirecao: !!a.direcaoutilizadoriduser,
+    criadoPorProfessor: !!a.professorutilizadoriduser,
+    criadoPorEncarregado: !!a.encarregadoeducacaoutilizadoriduser,
   };
 };
 
-export const getAllAnuncios = async () => {
-  const rows = await prisma.anuncio.findMany({ include: ANUNCIO_INCLUDE });
+export const getAllAnuncios = async (userRole = null, userId = null, estadoFilter = null) => {
+  const where = {};
+  
+  if (estadoFilter) {
+    where.estado = { tipoestado: { equals: estadoFilter, mode: 'insensitive' } };
+  } else if (userRole && userRole !== 'DIRECAO') {
+    // Non-DIRECAO: only see APROVADO or their own anuncios
+    const estadoAprovado = await prisma.estado.findFirst({
+      where: { tipoestado: { equals: "Aprovado", mode: "insensitive" } },
+    });
+    where.OR = [
+      { estadoidestado: estadoAprovado?.idestado ?? 0 },
+      ...(userId ? [
+        { encarregadoeducacaoutilizadoriduser: parseInt(userId) },
+        { professorutilizadoriduser: parseInt(userId) },
+      ] : []),
+    ];
+  }
+  
+  const rows = await prisma.anuncio.findMany({ where, include: ANUNCIO_INCLUDE, orderBy: { dataanuncio: 'desc' } });
   return rows.map(mapAnuncio);
 };
 
@@ -75,7 +96,7 @@ export const getAnunciosByEstado = async (estadoTipo) => {
   });
 };
 
-export const registarAnuncio = async (data, userId = null, userNome = '') => {
+export const registarAnuncio = async (data, userId = null, userNome = '', userRole = null) => {
   const { valor, dataanuncio, datainicio, datafim, quantidade, figurinoidfigurino, estadoidestado, direcaoutilizadoriduser, professorutilizadoriduser, encarregadoeducacaoutilizadoriduser, tipotransacao } = data;
   
   const agora = new Date();
@@ -98,16 +119,24 @@ export const registarAnuncio = async (data, userId = null, userNome = '') => {
 
   let resolvedEstadoId = estadoidestado ? parseInt(estadoidestado) : null;
   if (!resolvedEstadoId || isNaN(resolvedEstadoId)) {
-    const pendente = await prisma.estado.findFirst({
-      where: { tipoestado: { equals: 'Pendente', mode: 'insensitive' } }
-    });
-    resolvedEstadoId = pendente?.idestado ?? 21;
+    // Auto-aprovação para DIRECAO (BPMN 04)
+    if (userRole === 'DIRECAO') {
+      const aprovado = await prisma.estado.findFirst({
+        where: { tipoestado: { equals: 'Aprovado', mode: 'insensitive' } }
+      });
+      resolvedEstadoId = aprovado?.idestado ?? 21;
+    } else {
+      const pendente = await prisma.estado.findFirst({
+        where: { tipoestado: { equals: 'Pendente', mode: 'insensitive' } }
+      });
+      resolvedEstadoId = pendente?.idestado ?? 21;
+    }
   }
 
   const novoAnuncio = await prisma.anuncio.create({
     data: {
       valor: valor != null && valor !== '' ? parseFloat(valor) : null,
-      dataanuncio: new Date(dataanuncio),
+      dataanuncio: new Date(dataanuncio || new Date().toISOString().split('T')[0]),
       datainicio: datainicio ? new Date(datainicio) : null,
       datafim: datafim ? new Date(datafim) : null,
       quantidade: parseInt(quantidade) || 1,
@@ -138,7 +167,13 @@ export const updateAnuncio = async (id, data, userId, userRole) => {
       throw new Error('Sem permissão para editar este anúncio');
     }
     const estadoStr = (anuncio.estado?.tipoestado || '').toLowerCase();
-    if (estadoStr !== 'pendente') {
+    const novoEstado = await prisma.estado.findUnique({ where: { idestado: parseInt(estadoidestado) } });
+    const novoEstadoStr = (novoEstado?.tipoestado || '').toLowerCase();
+    if (novoEstadoStr === 'inativo') {
+      if (estadoStr !== 'aprovado' && estadoStr !== 'pendente') {
+        throw new Error('Só é possível inativar anúncios aprovados ou pendentes');
+      }
+    } else if (estadoStr !== 'pendente') {
       throw new Error('Só é possível editar anúncios pendentes');
     }
   }
@@ -159,7 +194,7 @@ export const updateAnuncio = async (id, data, userId, userRole) => {
   return mapAnuncio(updated);
 };
 
-export const deleteAnuncio = async (id, userId, userRole) => {
+export const deleteAnuncio = async (id, userId, userRole, userNome = '') => {
   if (userRole !== 'DIRECAO') {
     const anuncio = await prisma.anuncio.findUnique({ where: { idanuncio: parseInt(id) }, include: ANUNCIO_INCLUDE });
     const ownerId = anuncio?.encarregadoeducacao?.utilizador?.iduser || anuncio?.professor?.utilizador?.iduser;
@@ -192,7 +227,7 @@ const _auditAnuncioReject = async (id, userId, userNome, motivo) => {
   } catch (_) {}
 };
 
-export const avaliarAnuncio = async (id, decisao, userId, motivo) => {
+export const avaliarAnuncio = async (id, decisao, userId, userNome = '', motivo) => {
   if (decisao === 'aprovar') {
     const estadoAprovado = await prisma.estado.findFirst({
       where: { tipoestado: { equals: "Aprovado", mode: "insensitive" } },

@@ -162,7 +162,8 @@ export const submeterPedidoAula = async (data, incarregadoUserId) => {
     professor_utilizador_id,
     alunoutilizadoriduser,
     salaidsala,
-    privacidade
+    privacidade,
+    grupoidgrupo
   } = data;
 
   const estadoPendente = await prisma.$queryRaw`
@@ -238,6 +239,26 @@ export const submeterPedidoAula = async (data, incarregadoUserId) => {
     }
   }
 
+  // P-02: Sala conflict check — reject if the same sala has an overlapping booking
+  if (salaidsala && horainicio && dataAula && duracaoaula) {
+    const duracaoMin = parseInt(duracaoaula) || 60;
+    const salaConflito = await prisma.$queryRawUnsafe(`
+      SELECT COUNT(*) AS total
+      FROM pedidodeaula pa
+      JOIN estado e ON pa.estadoidestado = e.idestado
+      WHERE pa.salaidsala = $1
+      AND pa.data = $2::date
+      AND LOWER(e.tipoestado) IN ('pendente', 'confirmado')
+      AND $3::time < (pa.horainicio + pa.duracaoaula::text::interval)
+      AND ($3::time + $4 * INTERVAL '1 minute') > pa.horainicio
+    `, parseInt(salaidsala), dataStr, horaStr, duracaoMin);
+    if (parseInt(salaConflito[0]?.total) > 0) {
+      throw new Error('Esta sala já está reservada para outro pedido neste horário.');
+    }
+  }
+
+  const grupoId = data.grupoidgrupo ? parseInt(data.grupoidgrupo) : null;
+
   const result = await prisma.$queryRawUnsafe(`
     INSERT INTO pedidodeaula
     (data, horainicio, duracaoaula, maxparticipantes, datapedido, privacidade,
@@ -253,13 +274,13 @@ export const submeterPedidoAula = async (data, incarregadoUserId) => {
       $5,
       $10,
       $9,
-      3,
+      $11,
       $6,
       $7,
       $8
     )
     RETURNING idpedidoaula, data, horainicio, duracaoaula, privacidade
-  `, dataStr, horaStr, duracaoStr + ' minutes', privacidade || false, finalSlotId, estadoPendente[0].idestado, parseInt(salaidsala), incarregadoUserId, aluId, finalProfId);
+  `, dataStr, horaStr, duracaoStr + ' minutes', privacidade || false, finalSlotId, estadoPendente[0].idestado, parseInt(salaidsala), incarregadoUserId, aluId, finalProfId, grupoId);
 
   const pedidoId = result?.[0]?.idpedidoaula;
   if (pedidoId) {
@@ -280,7 +301,7 @@ export const submeterPedidoAula = async (data, incarregadoUserId) => {
 
 export const marcarAula = async (pedidoId, alunoId, encarregadoUserId) => {
   const pedidos = await prisma.$queryRaw`
-    SELECT data, horainicio, duracaoaula, disponibilidade_mensal_id, salaidsala, privacidade
+    SELECT data, horainicio, duracaoaula, disponibilidade_mensal_id, salaidsala, privacidade, professorutilizadoriduser, grupoidgrupo
     FROM pedidodeaula WHERE idpedidoaula = ${pedidoId}
   `;
   if (!pedidos || pedidos.length === 0) throw new Error("Pedido não encontrado");
@@ -293,6 +314,9 @@ export const marcarAula = async (pedidoId, alunoId, encarregadoUserId) => {
     disponibilidade_mensal_id: p.disponibilidade_mensal_id,
     salaidsala: p.salaidsala,
     privacidade: p.privacidade,
+    alunoutilizadoriduser: alunoId ? parseInt(alunoId) : null,
+    professor_utilizador_id: p.professorutilizadoriduser ? String(p.professorutilizadoriduser) : null,
+    grupoidgrupo: p.grupoidgrupo ? String(p.grupoidgrupo) : null,
     encarregadoeducacaoutilizadoriduser: encarregadoUserId
   });
 

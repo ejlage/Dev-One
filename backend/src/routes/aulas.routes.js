@@ -74,22 +74,34 @@ export default async function aulasRoutes(fastify) {
       const userId = req.user.id;
       const role = req.user.normalizedRoles || req.user.role;
 
-      const pedidos = await prisma.pedidodeaula.findMany({ orderBy: { datapedido: 'desc' } });
       const salas = Object.fromEntries((await prisma.sala.findMany()).map(s => [s.idsala, s.nomesala]));
       const estados = Object.fromEntries((await prisma.estado.findMany()).map(e => [e.idestado, e.tipoestado]));
 
-      let filtered = pedidos;
+      let pedidos;
       if (role === 'ENCARREGADO') {
-        filtered = pedidos.filter(p => p.encarregadoeducacaoutilizadoriduser === userId);
+        pedidos = await prisma.pedidodeaula.findMany({
+          where: { encarregadoeducacaoutilizadoriduser: userId },
+          orderBy: { datapedido: 'desc' }
+        });
       } else if (role === 'PROFESSOR') {
-        filtered = pedidos;
+        pedidos = await prisma.$queryRaw`
+          SELECT pa.* FROM pedidodeaula pa
+          LEFT JOIN disponibilidade_mensal dm ON pa.disponibilidade_mensal_id = dm.iddisponibilidade_mensal
+          WHERE dm.professorutilizadoriduser = ${userId}
+             OR pa.professorutilizadoriduser = ${userId}
+          ORDER BY pa.datapedido DESC
+        `;
       } else if (role === 'ALUNO') {
-        filtered = [];
+        pedidos = [];
+      } else {
+        pedidos = await prisma.pedidodeaula.findMany({ orderBy: { datapedido: 'desc' } });
       }
+
+      let filtered = pedidos;
 
       const data = filtered.map(p => ({
         id: String(p.idpedidoaula),
-        alunoId: String(p.alunoid || ''),
+        alunoId: String(p.alunoutilizadoriduser || p.alunoid || ''),
         alunoNome: '',
         encarregadoId: p.encarregadoeducacaoutilizadoriduser ? String(p.encarregadoeducacaoutilizadoriduser) : '',
         professorId: '',
@@ -147,7 +159,7 @@ export default async function aulasRoutes(fastify) {
         .filter(p => estados[p.estadoidestado] === 'PENDENTE' && p.privacidade === false)
         .map(p => ({
           id: String(p.idpedidoaula),
-          alunoId: String(p.alunoid || ''),
+          alunoId: String(p.alunoutilizadoriduser || p.alunoid || ''),
           alunoNome: '',
           encarregadoId: p.encarregadoeducacaoutilizadoriduser ? String(p.encarregadoeducacaoutilizadoriduser) : '',
           professorId: '',
@@ -376,7 +388,7 @@ export default async function aulasRoutes(fastify) {
   fastify.put("/:id/remarcar", {
     schema: {
       tags: ["Aulas"],
-      description: "Remarcar uma aula para nova data",
+      description: "Remarcar uma aula para nova data (apenas direção)",
       security: [{ bearerAuth: [] }],
       params: {
         type: "object",
@@ -403,7 +415,12 @@ export default async function aulasRoutes(fastify) {
         }
       }
     }
-  }, aulasController.remarcarAula);
+  }, async (req, reply) => {
+    if (!hasRole(req.user.normalizedRoles, "DIRECAO")) {
+      return reply.status(403).send({ success: false, error: "Acesso negado" });
+    }
+    return aulasController.remarcarAula(req, reply);
+  });
 
   fastify.put("/:id/sugerir-nova-data", {
     schema: {
@@ -489,13 +506,6 @@ export default async function aulasRoutes(fastify) {
           id: { type: "string", description: "ID da aula" }
         },
         required: ["id"]
-      },
-      body: {
-        type: "object",
-        properties: {
-          motivo: { type: "string", description: "Motivo da remarcação" }
-        },
-        required: ["motivo"]
       },
       response: {
         200: {

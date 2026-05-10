@@ -19,15 +19,13 @@ export async function startPedidoAulaScheduler() {
         return;
       }
 
-      // datapedido é DATE (sem time), comparamos com o início do dia de hoje
-      // para evitar auto-rejeitar pedidos criados hoje (que são recentes)
-      const hojeInicio = new Date();
-      hojeInicio.setHours(0, 0, 0, 0);
+      // datapedido é TIMESTAMP (agora tem hora), comparamos com NOW() - 3h
+      const tresHorasAtras = new Date(Date.now() - AUTO_REJECT_HOURS * 60 * 60 * 1000);
 
       const pedidosAntigos = await prisma.pedidodeaula.findMany({
         where: {
           estadoidestado: estadoPendente.idestado,
-          datapedido: { lt: hojeInicio }
+          datapedido: { lt: tresHorasAtras }
         }
       });
 

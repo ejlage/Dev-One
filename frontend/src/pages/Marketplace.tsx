@@ -75,28 +75,26 @@ export function Marketplace() {
     reader.readAsDataURL(file);
   };
 
-  const mapReserva = (r: any) => {
-    const requerenteNome =
-      r.encarregadoeducacao?.utilizador?.nome ||
-      r.professor?.utilizador?.nome ||
-      'Utilizador';
-    const requerenteId =
-      r.encarregadoeducacaoutilizadoriduser ||
-      r.professorutilizadoriduser ||
-      null;
-    return {
-      id: String(r.idtransacao),
-      anunciosId: String(r.anuncioidanuncio),
-      anunciosTitulo: r.anuncio?.figurino?.nomemodelo || r.anuncio?.titulo || 'Figurino',
-      usuarioId: requerenteId,
-      usuarioNome: requerenteNome,
-      dataInicio: r.datatransacao,
-      dataFim: r.datatransacao,
-      status: normalizeEstadoTipo(r.estado?.tipoestado),
-      criadoEm: r.datatransacao,
-      motivoRejeicao: r.motivorejeicao || null,
-    };
-  };
+  const mapReserva = (r: any) => ({
+    id: r.id,
+    anunciosId: r.anunciosId,
+    anunciosTitulo: r.anunciosTitulo || 'Figurino',
+    usuarioId: r.usuarioId || null,
+    usuarioNome: r.usuarioNome || 'Utilizador',
+    dataInicio: r.dataInicio,
+    dataFim: r.dataFim,
+    status: normalizeEstadoTipo(r.status),
+    criadoEm: r.createdAt,
+    motivoRejeicao: r.motivorejeicao || null,
+    figurinoNome: r.figurinoNome || '',
+    figurinoTamanho: r.figurinoTamanho || '',
+    figurinoCor: r.figurinoCor || '',
+    figurinoGenero: r.figurinoGenero || '',
+    figurinoTipo: r.figurinoTipo || '',
+    figurinoQuantidade: r.figurinoQuantidade,
+    valorAluguer: r.valorAluguer,
+    figurinoLocalizacao: r.figurinoLocalizacao || '',
+  });
 
   const fetchReservas = async () => {
     try {
@@ -172,12 +170,17 @@ export function Marketplace() {
       toast.error('Selecione um figurino');
       return;
     }
+    const hoje = new Date().toISOString().split('T')[0];
+    const dataFimPadrao = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     try {
       await api.registarAnuncio({
         figurinoidfigurino: parseInt(figurinoId),
         ...(valor && { valor: parseFloat(valor) }),
-        dataanuncio,
+        datainicio: hoje,
+        datafim: dataFimPadrao,
         quantidade: parseInt(quantidade),
+        tipotransacao: 'ALUGUER',
+        direcaoutilizadoriduser: parseInt(user.id),
       });
       toast.success('Anúncio de aluguer criado com sucesso!');
       setShowNovoForm(false);
@@ -193,11 +196,11 @@ export function Marketplace() {
     let anunciosFiltrados = [...anuncios];
 
     if (activeRole === 'ENCARREGADO') {
-      anunciosFiltrados = anunciosFiltrados.filter(a => a.vendedorId === user.id || a.status === 'APROVADO');
+      anunciosFiltrados = anunciosFiltrados.filter(a => String(a.vendedorId) === String(user.id) || a.status === 'APROVADO');
     }
 
     if (activeRole === 'PROFESSOR') {
-      anunciosFiltrados = anunciosFiltrados.filter(a => a.vendedorId === user.id || a.status === 'APROVADO');
+      anunciosFiltrados = anunciosFiltrados.filter(a => String(a.vendedorId) === String(user.id) || a.status === 'APROVADO');
     }
 
     if (activeRole === 'ALUNO') {
@@ -205,7 +208,12 @@ export function Marketplace() {
     }
 
     if (filtroMeus && activeRole !== 'DIRECAO') {
-      anunciosFiltrados = anunciosFiltrados.filter(a => a.vendedorId === user.id);
+      anunciosFiltrados = anunciosFiltrados.filter(a => String(a.vendedorId) === String(user.id));
+    }
+
+    // Esconder anúncios sem stock disponível (quantidade = 0) para quem não é o vendedor
+    if (activeRole !== 'DIRECAO') {
+      anunciosFiltrados = anunciosFiltrados.filter(a => String(a.vendedorId) === String(user.id) || (a.quantidade || 0) > 0);
     }
 
     if (filtroTipo !== 'TODOS') {
@@ -299,11 +307,10 @@ export function Marketplace() {
       await api.registarAnuncio({
         figurinoidfigurino: figurinoIdFinal,
         valor: valor ? parseFloat(valor) : undefined,
-        dataanuncio: new Date().toISOString().split('T')[0],
         datainicio,
         datafim: datafim || undefined,
         quantidade: 1,
-        tipotransacao: novoAnuncioEnc.tipo,
+        tipotransacao: novoAnuncioEnc.tipo || 'ALUGUER',
         encarregadoeducacaoutilizadoriduser: parseInt(user.id),
       });
       toast.success('Anúncio enviado para aprovação!');
@@ -376,11 +383,10 @@ export function Marketplace() {
       await api.registarAnuncio({
         figurinoidfigurino: figurinoIdFinal,
         valor: valor ? parseFloat(valor) : undefined,
-        dataanuncio: new Date().toISOString().split('T')[0],
         datainicio,
         datafim: datafim || undefined,
         quantidade: 1,
-        tipotransacao: tipo,
+        tipotransacao: tipo || 'ALUGUER',
         professorutilizadoriduser: parseInt(user.id),
       });
       toast.success('Anúncio enviado para aprovação!');
@@ -474,6 +480,17 @@ export function Marketplace() {
     }
   };
 
+  const handleInativarAnuncio = async (id: string) => {
+    if (!confirm('Inativar este anúncio? O anúncio deixará de aparecer no marketplace.')) return;
+    try {
+      await api.updateAnuncio(parseInt(id), { estadoidestado: 28 });
+      setAnuncios(prev => prev.map(a => a.id === id ? { ...a, status: 'INATIVO' as const } : a));
+      toast.success('Anúncio inativado');
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao inativar anúncio');
+    }
+  };
+
   const handleSolicitarAluguer = async (anunciosId: string) => {
     if (!reservaData.dataInicio || !reservaData.dataFim) {
       toast.error('Preencha as datas de início e fim do aluguer');
@@ -519,10 +536,16 @@ export function Marketplace() {
     try {
       const estadosResult = await api.getAluguerEstados();
       const estadoAprovado = estadosResult.data?.find((e: any) => e.tipoestado?.toLowerCase().startsWith('aprovado'));
+      let reservaAtualizada: any;
       if (estadoAprovado) {
-        await api.avaliarPedidoReserva(parseInt(reservaId), 'aprovar', estadoAprovado.idestado);
+        reservaAtualizada = await api.avaliarPedidoReserva(parseInt(reservaId), 'aprovar', estadoAprovado.idestado);
       }
       
+      const reserva = reservas.find(r => r.id === reservaId);
+      if (reserva) {
+        const qtd = reserva.figurinoQuantidade || 1;
+        setAnuncios(anuncios.map(a => a.id === reserva.anunciosId ? { ...a, quantidade: Math.max(0, (a.quantidade || 0) - qtd) } : a));
+      }
       setReservas(reservas.map(r => r.id === reservaId ? { ...r, status: 'APROVADA' } : r));
       toast.success('Reserva aprovada!');
     } catch (error) {
@@ -551,6 +574,20 @@ export function Marketplace() {
     } finally {
       setRejeitarReservaModal(null);
       setRejeitarReservaMotivoInput('');
+    }
+  };
+
+  const handleDevolverReserva = async (reservaId: string) => {
+    try {
+      await api.devolverAluguer(parseInt(reservaId));
+      setReservas(reservas.map(r => r.id === reservaId ? { ...r, status: 'CONCLUÍDO' } : r));
+      setAnuncios(anuncios.map(a => a.id === reservas.find(r => r.id === reservaId)?.anunciosId
+        ? { ...a, quantidade: (a.quantidade || 0) + 1 }
+        : a
+      ));
+      toast.success('Figurino devolvido e disponível novamente!');
+    } catch (error) {
+      toast.error('Erro ao registar devolução');
     }
   };
 
@@ -1143,8 +1180,9 @@ export function Marketplace() {
                       PENDENTE: 'bg-amber-100 text-amber-800',
                       APROVADA: 'bg-teal-100 text-teal-800',
                       REJEITADA: 'bg-red-100 text-red-800',
+                      CONCLUÍDO: 'bg-emerald-100 text-emerald-800',
                     };
-                    const labels: Record<string, string> = { PENDENTE: 'Pendente', APROVADA: 'Aprovada', REJEITADA: 'Rejeitada' };
+                    const labels: Record<string, string> = { PENDENTE: 'Pendente', APROVADA: 'Aprovada', REJEITADA: 'Rejeitada', CONCLUÍDO: 'Concluída' };
                     return (
                       <span className={`px-3 py-1 rounded-full text-sm ${map[status] ?? 'bg-gray-100 text-gray-700'}`}>
                         {labels[status] ?? status}
@@ -1159,8 +1197,18 @@ export function Marketplace() {
                           {activeRole === 'DIRECAO' && (
                             <p className="text-sm text-[#4d7068]">Solicitado por: <strong>{reserva.usuarioNome}</strong></p>
                           )}
-                          <p className="text-sm text-[#4d7068]">Data: {new Date(reserva.dataInicio).toLocaleDateString('pt-PT')}</p>
+                          <p className="text-sm text-[#4d7068]">Início: {reserva.dataInicio ? new Date(reserva.dataInicio).toLocaleDateString('pt-PT') : '—'}  |  Fim: {reserva.dataFim ? new Date(reserva.dataFim).toLocaleDateString('pt-PT') : '—'}</p>
                           {anuncioRelacionado?.espetaculoNome && (<p className="text-sm text-[#0d6b5e] mt-1">Espetáculo: {anuncioRelacionado.espetaculoNome}</p>)}
+                          {(reserva.figurinoNome || reserva.figurinoTamanho || reserva.figurinoCor) && (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {reserva.figurinoNome && <span className="text-xs bg-[#e2f0ed] text-[#0d6b5e] px-2 py-1 rounded">{reserva.figurinoNome}</span>}
+                              {reserva.figurinoTamanho && <span className="text-xs bg-[#e2f0ed] text-[#0d6b5e] px-2 py-1 rounded">{reserva.figurinoTamanho}</span>}
+                              {reserva.figurinoCor && <span className="text-xs bg-[#e2f0ed] text-[#0d6b5e] px-2 py-1 rounded">{reserva.figurinoCor}</span>}
+                              {reserva.figurinoTipo && <span className="text-xs bg-[#e2f0ed] text-[#0d6b5e] px-2 py-1 rounded">{reserva.figurinoTipo}</span>}
+                              {reserva.valorAluguer != null && <span className="text-xs bg-[#c9a84c]/20 text-[#0a1a17] px-2 py-1 rounded">{reserva.valorAluguer}€</span>}
+                              {reserva.figurinoLocalizacao && <span className="text-xs bg-[#deecea] text-[#065147] px-2 py-1 rounded">📍 {reserva.figurinoLocalizacao}</span>}
+                            </div>
+                          )}
                         </div>
                         <div className="flex items-center gap-2">
                           {activeRole === 'DIRECAO' && reserva.status === 'PENDENTE' ? (
@@ -1170,6 +1218,13 @@ export function Marketplace() {
                               </button>
                               <button onClick={() => handleRejeitarReserva(reserva.id)} className="flex items-center gap-1 bg-red-600 text-white px-3 py-2 rounded-lg hover:bg-red-700 transition-colors text-sm">
                                 <XCircle className="w-4 h-4" />Rejeitar
+                              </button>
+                            </>
+                          ) : activeRole === 'DIRECAO' && reserva.status === 'APROVADA' ? (
+                            <>
+                              {statusBadge(reserva.status)}
+                              <button onClick={() => handleDevolverReserva(reserva.id)} className="flex items-center gap-1 bg-[#065147] text-white px-3 py-2 rounded-lg hover:bg-[#043a30] transition-colors text-sm">
+                                <CheckCircle className="w-4 h-4" />Devolvida
                               </button>
                             </>
                           ) : (
@@ -1211,7 +1266,7 @@ export function Marketplace() {
                         {anuncio.tipoTransacao === 'VENDA' ? (<><ShoppingBag className="w-3 h-3" />Venda</>) : (<><Tag className="w-3 h-3" />Aluguer</>)}
                       </span>
                     </div>
-                    {(activeRole === 'DIRECAO' || anuncio.vendedorId === user.id) && anuncio.status === 'PENDENTE' && (
+                    {(activeRole === 'DIRECAO' || String(anuncio.vendedorId) === String(user.id)) && anuncio.status === 'PENDENTE' && (
                       <div className="absolute top-3 right-3">
                         <span className="px-3 py-1 rounded-full text-xs bg-amber-100 text-amber-800 border border-amber-200">Pendente</span>
                       </div>
@@ -1240,7 +1295,7 @@ export function Marketplace() {
                       )}
                     </div>
 
-                    {anuncio.tipoTransacao === 'ALUGUER' && anuncio.status === 'APROVADO' && (activeRole === 'ENCARREGADO' || activeRole === 'PROFESSOR') && (
+                    {anuncio.tipoTransacao === 'ALUGUER' && anuncio.status === 'APROVADO' && (activeRole === 'ENCARREGADO' || activeRole === 'PROFESSOR') && (anuncio as any).criadoPorDirecao && (
                       <div className="mt-4">
                         {(anuncio.quantidade || 0) <= 0 ? (
                           <div className="w-full flex items-center justify-center gap-2 bg-gray-100 text-gray-500 px-4 py-2 rounded-lg text-sm cursor-not-allowed" style={{ fontWeight: 600 }}>
@@ -1284,7 +1339,7 @@ export function Marketplace() {
                       </div>
                     )}
 
-                    {(activeRole === 'ENCARREGADO' || activeRole === 'PROFESSOR') && anuncio.vendedorId === user.id && anuncio.status === 'PENDENTE' && (
+                    {(activeRole === 'ENCARREGADO' || activeRole === 'PROFESSOR') && String(anuncio.vendedorId) === String(user.id) && anuncio.status === 'PENDENTE' && (
                       <>
                         <div className="mt-3 flex items-center gap-2 text-sm text-amber-700 bg-amber-50 p-3 rounded-lg border border-amber-200">
                           <Clock className="w-4 h-4" /><span>Aguardando aprovação da direção</span>
@@ -1310,7 +1365,7 @@ export function Marketplace() {
                       </>
                     )}
 
-                    {(activeRole === 'ENCARREGADO' || activeRole === 'PROFESSOR') && anuncio.vendedorId === user.id && anuncio.status === 'REJEITADO' && (
+                    {(activeRole === 'ENCARREGADO' || activeRole === 'PROFESSOR') && String(anuncio.vendedorId) === String(user.id) && anuncio.status === 'REJEITADO' && (
                       <>
                         <div className="mt-3 p-3 bg-red-50 rounded-lg border border-red-200">
                           <div className="flex items-center gap-2 text-sm text-red-700 font-medium mb-1">
@@ -1325,6 +1380,17 @@ export function Marketplace() {
                           <button onClick={() => handleDeleteAnuncio(anuncio.id)} className="flex-1 bg-red-50 text-red-600 px-3 py-2 rounded-lg text-sm hover:bg-red-100 transition-colors">Desistir</button>
                         </div>
                       </>
+                    )}
+
+                    {(activeRole === 'ENCARREGADO' || activeRole === 'PROFESSOR') && String(anuncio.vendedorId) === String(user.id) && anuncio.status === 'APROVADO' && (
+                      <div className="mt-3">
+                        <div className="flex items-center gap-2 text-sm text-[#0d6b5e] bg-[#e2f0ed] p-3 rounded-lg border border-[#0d6b5e]/20">
+                          <CheckCircle className="w-4 h-4" /><span>Aprovado - Pode inativar o anúncio</span>
+                        </div>
+                        <div className="mt-2 flex gap-2">
+                          <button onClick={() => handleInativarAnuncio(anuncio.id)} className="flex-1 bg-red-50 text-red-600 px-3 py-2 rounded-lg text-sm hover:bg-red-100 transition-colors">Inativar</button>
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>

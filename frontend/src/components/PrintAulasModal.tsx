@@ -84,6 +84,11 @@ export function PrintAulasModal({ currentUser, onClose }: Props) {
     ? `${dateFrom ? formatDateShort(dateFrom) : '—'} a ${dateTo ? formatDateShort(dateTo) : '—'}`
     : 'Todas as datas';
 
+  const escapeHtml = (str: string | null | undefined): string => {
+    if (str == null) return '';
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+  };
+
   const handlePrint = () => {
     const conteudo = printRef.current?.innerHTML ?? '';
     const win = window.open('', '_blank', 'width=960,height=720');
@@ -92,7 +97,7 @@ export function PrintAulasModal({ currentUser, onClose }: Props) {
 <html lang="pt">
 <head>
   <meta charset="UTF-8"/>
-  <title>Aulas Realizadas — ${selectedProf?.nome ?? ''} — ${periodoLabel}</title>
+  <title>Aulas Realizadas — ${escapeHtml(selectedProf?.nome ?? '')} — ${escapeHtml(periodoLabel)}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Segoe UI', Arial, sans-serif; color: #0a1a17; padding: 32px; font-size: 13px; }

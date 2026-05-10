@@ -1,5 +1,4 @@
 import * as contactoController from "../controllers/contacto.controller.js";
-import { verifyToken } from "../middleware/auth.middleware.js";
 
 export default async function publicContactRoutes(fastify) {
   // POST /api/public/contactos — publico, envia email sem guardar na BD
@@ -45,31 +44,4 @@ export default async function publicContactRoutes(fastify) {
     }
   }, contactoController.submitContactForm);
 
-  // GET /api/public/ — protegido, apenas para direcao ver inscricoes
-  fastify.addHook("onRequest", async (req, reply) => {
-    return verifyToken(req, reply);
-  });
-  fastify.get("/", {
-    schema: {
-      tags: ["Contactos"],
-      description: "Lista todos os contactos/submissões (apenas Direção)",
-      security: [{ bearerAuth: [] }],
-      response: {
-        200: {
-          type: "object",
-          properties: {
-            success: { type: "boolean" },
-            data: { type: "array", items: { type: "object" } }
-          }
-        },
-        500: {
-          type: "object",
-          properties: {
-            success: { type: "boolean" },
-            error: { type: "string" }
-          }
-        }
-      }
-    }
-  }, contactoController.getContactos);
 }

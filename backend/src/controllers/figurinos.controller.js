@@ -64,7 +64,7 @@ export const updateFigurinoStatus = async (req, reply) => {
 
 export const createFigurinoStock = async (req, reply) => {
   try {
-    const figurino = await figurinosService.createFigurinoStock(req.body, req.user?.id, req.user?.role);
+    const figurino = await figurinosService.createFigurinoStock(req.body, req.user?.id, req.user?.role, req.user?.id, req.user?.nome);
     return reply.status(201).send({ success: true, data: figurino });
   } catch (error) {
     return reply.status(400).send({ success: false, error: error.message });
@@ -75,7 +75,7 @@ export const updateFigurinoStatusSimple = async (req, reply) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
-    const figurino = await figurinosService.updateFigurinoStatusSimple(id, status);
+    const figurino = await figurinosService.updateFigurinoStatusSimple(id, status, req.user?.id, req.user?.nome);
     return reply.send({ success: true, data: figurino });
   } catch (error) {
     return reply.status(400).send({ success: false, error: error.message });

@@ -250,9 +250,7 @@ export const enrollAluno = async (turmaId, alunoId, userId = null, userNome = ''
   return enrollment;
 };
 
-export const removeAluno = async (turmaId, userId) => {
-  const auditorUserId = userId;
-  const auditorUserNome = '';
+export const removeAluno = async (turmaId, userId, auditorUserId = userId, auditorUserNome = '') => {
   const alunoRec = await prisma.aluno.findFirst({
     where: { utilizadoriduser: userId }
   });

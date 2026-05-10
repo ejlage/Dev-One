@@ -17,7 +17,7 @@ export default async function usersRoutes(fastify) {
           type: "object",
           properties: {
             success: { type: "boolean" },
-            data: { type: "array", items: { type: "object" } }
+            data: { type: "array", items: { type: "object", additionalProperties: true } }
           }
         },
         500: {
@@ -37,25 +37,25 @@ export default async function usersRoutes(fastify) {
       description: "Lista todas as modalidades disponíveis",
       security: [{ bearerAuth: [] }],
       response: {
-        200: {
-          type: "object",
-          properties: {
-            success: { type: "boolean" },
-            data: { type: "array", items: { type: "object" } }
-          }
-        },
-        500: {
-          type: "object",
-          properties: {
-            success: { type: "boolean" },
-            error: { type: "string" }
-          }
-        }
-      }
-    }
-  }, async (req, reply) => {
-    try {
-      const modalidades = await prisma.modalidade.findMany({ orderBy: { nome: 'asc' } });
+         200: {
+           type: "object",
+           properties: {
+             success: { type: "boolean" },
+             data: { type: "array", items: { type: "object", additionalProperties: true } }
+           }
+         },
+         500: {
+           type: "object",
+           properties: {
+             success: { type: "boolean" },
+             error: { type: "string" }
+           }
+         }
+       }
+     }
+   }, async (req, reply) => {
+     try {
+       const modalidades = await prisma.modalidade.findMany({ orderBy: { nome: 'asc' } });
       return reply.send({ success: true, data: modalidades });
     } catch (err) {
       return reply.status(500).send({ success: false, error: err.message });
@@ -114,11 +114,11 @@ export default async function usersRoutes(fastify) {
         properties: {
           nome: { type: "string", description: "Nome completo do utilizador" },
           email: { type: "string", format: "email", description: "Email do utilizador" },
-          telemovel: { type: "string", description: "Número de telemóvel" },
+          telemovel: { anyOf: [{ type: "string" }, { type: "null" }], description: "Número de telemóvel" },
           password: { type: "string", minLength: 6, description: "Password inicial" },
-          role: { type: "string", description: "Role do utilizador (ALUNO, ENCARREGADO, PROFESSOR, DIRECAO)" },
-          modalidades: { type: "array", items: { type: "integer" }, description: "IDs das modalidades" },
-          encarregadoId: { type: "integer", description: "ID do encarregado (obrigatório para role ALUNO)" }
+          role: { anyOf: [{ type: "string" }, { type: "array", items: { type: "string" } }], description: "Role do utilizador (ALUNO, ENCARREGADO, PROFESSOR, DIRECAO)" },
+          modalidades: { type: "array", items: { anyOf: [{ type: "integer" }, { type: "string" }] }, description: "IDs das modalidades" },
+          encarregadoId: { anyOf: [{ type: "integer" }, { type: "string" }, { type: "null" }], description: "ID do encarregado (obrigatório para role ALUNO)" }
         }
       },
       response: {
@@ -169,11 +169,12 @@ export default async function usersRoutes(fastify) {
         properties: {
           nome: { type: "string", description: "Nome completo" },
           email: { type: "string", format: "email", description: "Email" },
-          telemovel: { type: "string", description: "Telemóvel" },
+          telemovel: { anyOf: [{ type: "string" }, { type: "null" }], description: "Telemóvel" },
           password: { type: "string", minLength: 6, description: "Nova password" },
-          role: { type: "string", description: "Role do utilizador" },
+          role: { anyOf: [{ type: "string" }, { type: "array", items: { type: "string" } }], description: "Role do utilizador" },
           estado: { type: "boolean", description: "Estado ativo" },
-          modalidades: { type: "array", items: { type: "integer" }, description: "IDs das modalidades" }
+          modalidades: { type: "array", items: { anyOf: [{ type: "integer" }, { type: "string" }] }, description: "IDs das modalidades" },
+          encarregadoId: { anyOf: [{ type: "integer" }, { type: "string" }, { type: "null" }], description: "ID do encarregado para alunos" }
         }
       },
       response: {
@@ -273,23 +274,23 @@ export default async function usersRoutes(fastify) {
       },
       response: {
         200: {
-          type: "object",
-          properties: {
-            success: { type: "boolean" },
-            data: { type: "array", items: { type: "object" } }
-          }
-        },
-        400: {
-          type: "object",
-          properties: {
-            success: { type: "boolean" },
-            error: { type: "string" }
-          }
-        }
-      }
-    }
-  }, async (req, reply) => {
-    req.params.id = parseInt(req.params.id);
-    return usersController.getUserModalidades(req, reply);
+           type: "object",
+           properties: {
+             success: { type: "boolean" },
+             data: { type: "array", items: { type: "object", additionalProperties: true } }
+           }
+         },
+         400: {
+           type: "object",
+           properties: {
+             success: { type: "boolean" },
+             error: { type: "string" }
+           }
+         }
+       }
+     }
+   }, async (req, reply) => {
+     req.params.id = parseInt(req.params.id);
+     return usersController.getUserModalidades(req, reply);
   });
 }

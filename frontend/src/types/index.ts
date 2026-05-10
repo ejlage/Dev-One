@@ -15,11 +15,11 @@ export type AulaStatus = 'PENDENTE' | 'CONFIRMADA' | 'REJEITADA' | 'REALIZADA' |
 
 export type FigurinoStatus = 'DISPONIVEL' | 'ALUGADO' | 'VENDIDO';
 
-export type AnuncioStatus = 'PENDENTE' | 'APROVADO' | 'REJEITADO';
+export type AnuncioStatus = 'PENDENTE' | 'APROVADO' | 'REJEITADO' | 'INATIVO';
 
 export type TipoTransacao = 'VENDA' | 'ALUGUER';
 
-export type ReservaFigurinoStatus = 'PENDENTE' | 'APROVADA' | 'REJEITADA';
+export type ReservaFigurinoStatus = 'PENDENTE' | 'APROVADA' | 'REJEITADA' | 'CONFIRMADA' | 'CANCELADA';
 
 export interface User {
   id: string;

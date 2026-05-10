@@ -24,7 +24,7 @@ export const getTurmaById = async (req, reply) => {
 
 export const createTurma = async (req, reply) => {
   try {
-    const turma = await turmasService.createTurma(req.body);
+    const turma = await turmasService.createTurma(req.body, req.user.id, req.user.nome);
     return reply.status(201).send({ success: true, data: turma });
   } catch (error) {
     return reply.status(400).send({ success: false, error: error.message });
@@ -34,7 +34,7 @@ export const createTurma = async (req, reply) => {
 export const updateTurma = async (req, reply) => {
   try {
     const { id } = req.params;
-    const turma = await turmasService.updateTurma(parseInt(id), req.body);
+    const turma = await turmasService.updateTurma(parseInt(id), req.body, req.user.id, req.user.nome);
     return reply.send({ success: true, data: turma });
   } catch (error) {
     return reply.status(400).send({ success: false, error: error.message });
@@ -55,7 +55,7 @@ export const enrollAluno = async (req, reply) => {
   try {
     const { id } = req.params;
     const { alunoId } = req.body;
-    const enrollment = await turmasService.enrollAluno(parseInt(id), parseInt(alunoId));
+    const enrollment = await turmasService.enrollAluno(parseInt(id), parseInt(alunoId), req.user.id, req.user.nome);
     return reply.status(201).send({ success: true, data: enrollment });
   } catch (error) {
     return reply.status(400).send({ success: false, error: error.message });
@@ -65,7 +65,7 @@ export const enrollAluno = async (req, reply) => {
 export const removeAluno = async (req, reply) => {
   try {
     const { id, alunoId } = req.params;
-    await turmasService.removeAluno(parseInt(id), parseInt(alunoId));
+    await turmasService.removeAluno(parseInt(id), parseInt(alunoId), req.user.id, req.user.nome);
     return reply.send({ success: true, data: { message: "Aluno removido da turma" } });
   } catch (error) {
     return reply.status(400).send({ success: false, error: error.message });
@@ -75,7 +75,7 @@ export const removeAluno = async (req, reply) => {
 export const closeTurma = async (req, reply) => {
   try {
     const { id } = req.params;
-    const result = await turmasService.closeTurma(parseInt(id));
+    const result = await turmasService.closeTurma(parseInt(id), req.user.id, req.user.nome);
     return reply.send({ success: true, data: result });
   } catch (error) {
     return reply.status(400).send({ success: false, error: error.message });
@@ -85,7 +85,7 @@ export const closeTurma = async (req, reply) => {
 export const archiveTurma = async (req, reply) => {
   try {
     const { id } = req.params;
-    const result = await turmasService.archiveTurma(parseInt(id));
+    const result = await turmasService.archiveTurma(parseInt(id), req.user.id, req.user.nome);
     return reply.send({ success: true, data: result });
   } catch (error) {
     return reply.status(400).send({ success: false, error: error.message });

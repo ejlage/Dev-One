@@ -2,7 +2,10 @@ import * as anunciosService from "../services/anuncios.service.js";
 
 export const getAllAnuncios = async (req, reply) => {
   try {
-    const anuncios = await anunciosService.getAllAnuncios();
+    const { estado } = req.query || {};
+    console.log('[getAllAnuncios] user role:', req.user?.role, 'user id:', req.user?.id);
+    const anuncios = await anunciosService.getAllAnuncios(req.user?.role, req.user?.id, estado);
+    console.log('[getAllAnuncios] returning:', anuncios.length, 'anuncios');
     return reply.send({ success: true, data: anuncios });
   } catch (error) {
     return reply.status(400).send({ success: false, error: error.message });
@@ -24,7 +27,7 @@ export const consultarAnuncio = async (req, reply) => {
 
 export const registarAnuncio = async (req, reply) => {
   try {
-    const anuncio = await anunciosService.registarAnuncio(req.body);
+    const anuncio = await anunciosService.registarAnuncio(req.body, req.user.id, req.user.nome, req.user.role);
     return reply.status(201).send({ success: true, data: anuncio });
   } catch (error) {
     return reply.status(400).send({ success: false, error: error.message });
@@ -58,7 +61,7 @@ export const avaliarAnuncio = async (req, reply) => {
     const { id } = req.params;
     const userId = req.user.id;
     const { decisao, motivo } = req.body || {};
-    const anuncio = await anunciosService.avaliarAnuncio(parseInt(id), decisao, userId, motivo);
+    const anuncio = await anunciosService.avaliarAnuncio(parseInt(id), decisao, userId, req.user.nome, motivo);
     return reply.send({ success: true, data: anuncio });
   } catch (error) {
     return reply.status(400).send({ success: false, error: error.message });

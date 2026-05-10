@@ -23,6 +23,29 @@ export default async function figurinosRoutes(fastify) {
     }
   }, figurinosController.getAllFigurinos);
 
+  fastify.get("/:id", {
+    schema: {
+      tags: ["Figurinos"],
+      description: "Obter um figurino por ID",
+      security: [{ bearerAuth: [] }],
+      params: {
+        type: "object",
+        properties: {
+          id: { type: "integer" }
+        }
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            data: { type: "object" }
+          }
+        }
+      }
+    }
+  }, figurinosController.consultarFigurino);
+
   fastify.post("/", {
     schema: {
       tags: ["Figurinos"],
@@ -137,17 +160,19 @@ export default async function figurinosRoutes(fastify) {
       security: [{ bearerAuth: [] }],
       body: {
         type: "object",
-        required: ["nome", "descricao", "tamanho", "genero", "cor", "tipoiditem", "quantidade"],
+        required: ["nome", "tipofigurinoid", "tamanhoid", "generoid", "corid"],
         properties: {
           nome: { type: "string" },
           descricao: { type: "string" },
-          tamanho: { type: "string" },
-          genero: { type: "string" },
-          cor: { type: "string" },
-          tipoiditem: { type: "integer" },
-          quantidade: { type: "integer" },
-          preco: { type: "number" },
-          imagem: { type: "string" }
+          fotografia: { type: "string" },
+          tipofigurinoid: { type: "integer" },
+          tamanhoid: { type: "integer" },
+          generoid: { type: "integer" },
+          corid: { type: "integer" },
+          estadousoid: { type: "integer" },
+          localizacao: { type: "string" },
+          quantidadetotal: { type: "integer" },
+          quantidadedisponivel: { type: "integer" },
         }
       },
       response: {
@@ -212,7 +237,17 @@ export default async function figurinosRoutes(fastify) {
           type: "object",
           properties: {
             success: { type: "boolean" },
-            data: { type: "object" }
+            data: {
+              type: "object",
+              properties: {
+                tamanhos: { type: "array" },
+                generos: { type: "array" },
+                cores: { type: "array" },
+                modelos: { type: "array" },
+                tipos: { type: "array" },
+                estadosUso: { type: "array" }
+              }
+            }
           }
         }
       }

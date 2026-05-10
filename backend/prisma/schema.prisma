@@ -115,7 +115,7 @@ model encarregadoeducacao {
 
 model estado {
   idestado          Int                 @id @default(autoincrement())
-  tipoestado        String              @db.VarChar(255)
+  tipoestado        String              @unique @db.VarChar(255)
   anuncio           anuncio[]
   pedidodeaula      pedidodeaula[]
   transacaofigurino transacaofigurino[]
@@ -123,7 +123,7 @@ model estado {
 
 model estadoaula {
   idestadoaula   Int    @id @default(autoincrement())
-  nomeestadoaula String @db.VarChar(255)
+  nomeestadoaula String @unique @db.VarChar(255)
   aula           aula[]
 }
 
@@ -232,9 +232,9 @@ model pedidodeaula {
   horainicio                          DateTime                @db.Time(6)
   duracaoaula                         DateTime                @db.Time(6)
   maxparticipantes                    Int
-  datapedido                          DateTime                @db.Date
+  datapedido                          DateTime                @db.Timestamp(6)
   privacidade                         Boolean
-  grupoidgrupo                        Int
+  grupoidgrupo                        Int?
   estadoidestado                      Int
   salaidsala                          Int
   encarregadoeducacaoutilizadoriduser Int
@@ -249,7 +249,7 @@ model pedidodeaula {
   encarregadoeducacao                 encarregadoeducacao     @relation(fields: [encarregadoeducacaoutilizadoriduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction, map: "fkpedidodeau208002")
   sala                                sala                    @relation(fields: [salaidsala], references: [idsala], onDelete: NoAction, onUpdate: NoAction, map: "fkpedidodeau681324")
   estado                              estado                  @relation(fields: [estadoidestado], references: [idestado], onDelete: NoAction, onUpdate: NoAction, map: "fkpedidodeau808009")
-  grupo                               grupo                   @relation(fields: [grupoidgrupo], references: [idgrupo], onDelete: NoAction, onUpdate: NoAction, map: "fkpedidodeau991761")
+  grupo                               grupo?                  @relation(fields: [grupoidgrupo], references: [idgrupo], onDelete: NoAction, onUpdate: NoAction, map: "fkpedidodeau991761")
   disponibilidade_mensal              disponibilidade_mensal? @relation(fields: [disponibilidade_mensal_id], references: [iddisponibilidade_mensal], onDelete: NoAction, onUpdate: NoAction)
 }
 
@@ -298,6 +298,8 @@ model transacaofigurino {
   idtransacao                         Int                  @id @default(autoincrement())
   quantidade                          Int
   datatransacao                       DateTime             @db.Date
+  datainicio                          DateTime?            @db.Date
+  datafim                             DateTime?            @db.Date
   anuncioidanuncio                    Int
   estadoidestado                      Int
   itemfigurinoiditem                  Int?
@@ -358,7 +360,7 @@ model disponibilidade_mensal {
 
 model audit_log {
   idaudit      Int      @id @default(autoincrement())
-  utilizadorid Int
+  utilizadorid Int?
   utilizadornome String @db.VarChar(255)
   acao         String   @db.VarChar(50)
   entidade     String   @db.VarChar(100)

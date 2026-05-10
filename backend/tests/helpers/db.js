@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 
-const dbUrl = (process.env.DATABASE_URL || 'postgresql://entartes:entartes_dev_password@localhost:5432/entartes') + '?connection_limit=1';
+const dbBase = (process.env.DATABASE_URL || 'postgresql://entartes:entartes_dev_password@localhost:5432/entartes');
+const dbUrl = dbBase.includes('?') ? dbBase : dbBase + '?connection_limit=1';
 
 const prisma = new PrismaClient({
   log: ['error'],

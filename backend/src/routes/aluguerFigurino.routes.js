@@ -110,11 +110,12 @@ export default async function aluguerFigurinoRoutes(fastify) {
       security: [{ bearerAuth: [] }],
       body: {
         type: "object",
-        required: ["anuncioidanuncio", "datainicio", "datafim", "quantidade"],
+        required: ["anuncioidanuncio", "quantidade"],
         properties: {
           anuncioidanuncio: { type: "integer" },
-          datainicio: { type: "string" },
-          datafim: { type: "string" },
+          datatransacao: { type: "string", description: "Data da transação (YYYY-MM-DD), omite para usar data atual" },
+          datainicio: { type: "string", description: "Data de início do aluguer (YYYY-MM-DD)" },
+          datafim: { type: "string", description: "Data de fim do aluguer (YYYY-MM-DD)" },
           quantidade: { type: "integer" },
           valor: { type: "number" },
           itemfigurinoiditem: { type: "integer" },
@@ -133,42 +134,10 @@ export default async function aluguerFigurinoRoutes(fastify) {
       }
     }
   }, async (req, reply) => {
-    return alquuerController.submeterPedidoReserva(req, reply);
-  });
-
-  fastify.put("/:id/status", {
-    schema: {
-      tags: ["Aluguer de Figurinos"],
-      description: "Atualizar o status de uma reserva",
-      security: [{ bearerAuth: [] }],
-      params: {
-        type: "object",
-        properties: {
-          id: { type: "integer" }
-        }
-      },
-      body: {
-        type: "object",
-        required: ["status"],
-        properties: {
-          status: { type: "string" }
-        }
-      },
-      response: {
-        200: {
-          type: "object",
-          properties: {
-            success: { type: "boolean" },
-            data: { type: "object" }
-          }
-        }
-      }
-    }
-  }, async (req, reply) => {
-    if (!hasRole(req.user.normalizedRoles, "DIRECAO", "PROFESSOR")) {
+    if (!hasRole(req.user.normalizedRoles, "ENCARREGADO", "PROFESSOR", "DIRECAO")) {
       return reply.status(403).send({ success: false, error: "Acesso negado" });
     }
-    return alquuerController.avaliarPedidoReserva(req, reply);
+    return alquuerController.submeterPedidoReserva(req, reply);
   });
 
   fastify.put("/:id/avaliar", {
@@ -205,6 +174,93 @@ export default async function aluguerFigurinoRoutes(fastify) {
       return reply.status(403).send({ success: false, error: "Acesso negado" });
     }
     return alquuerController.avaliarPedidoReserva(req, reply);
+  });
+
+  fastify.post("/:id/confirmar", {
+    schema: {
+      tags: ["Aluguer de Figurinos"],
+      description: "Utilizador confirma reserva após aprovação da Direção",
+      security: [{ bearerAuth: [] }],
+      params: {
+        type: "object",
+        properties: { id: { type: "integer" } },
+        required: ["id"]
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            data: { type: "object" }
+          }
+        }
+      }
+    }
+  }, async (req, reply) => {
+    if (!hasRole(req.user.normalizedRoles, "ENCARREGADO", "PROFESSOR")) {
+      return reply.status(403).send({ success: false, error: "Acesso negado" });
+    }
+    return alquuerController.confirmarReserva(req, reply);
+  });
+
+  fastify.post("/:id/cancelar-reserva", {
+    schema: {
+      tags: ["Aluguer de Figurinos"],
+      description: "Utilizador cancela reserva",
+      security: [{ bearerAuth: [] }],
+      params: {
+        type: "object",
+        properties: { id: { type: "integer" } },
+        required: ["id"]
+      },
+      body: {
+        type: "object",
+        properties: {
+          motivo: { type: "string", description: "Motivo do cancelamento" }
+        }
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            data: { type: "object" }
+          }
+        }
+      }
+    }
+  }, async (req, reply) => {
+    if (!hasRole(req.user.normalizedRoles, "ENCARREGADO", "PROFESSOR", "DIRECAO")) {
+      return reply.status(403).send({ success: false, error: "Acesso negado" });
+    }
+    return alquuerController.cancelarReserva(req, reply);
+  });
+
+  fastify.patch("/:id/devolver", {
+    schema: {
+      tags: ["Aluguer de Figurinos"],
+      description: "Marcar aluguer como devolvido (concluído)",
+      security: [{ bearerAuth: [] }],
+      params: {
+        type: "object",
+        properties: { id: { type: "integer" } },
+        required: ["id"]
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            data: { type: "object" }
+          }
+        }
+      }
+    }
+  }, async (req, reply) => {
+    if (!hasRole(req.user.normalizedRoles, "DIRECAO")) {
+      return reply.status(403).send({ success: false, error: "Acesso negado" });
+    }
+    return alquuerController.devolverAluguer(req, reply);
   });
 
   fastify.delete("/:id", {

@@ -57,12 +57,15 @@ export default async function eventosRoutes(fastify) {
         properties: {
           titulo: { type: "string", description: "Título do evento" },
           descricao: { type: "string", description: "Descrição do evento" },
-          dataevento: { type: "string", description: "Data do evento (formato ISO)" },
-          localizacao: { type: "string", description: "Localização do evento" },
+          data: { type: "string", description: "Data do evento (formato ISO)" },
+          datafim: { type: "string", description: "Data de fim do evento (formato ISO)" },
+          local: { type: "string", description: "Localização do evento" },
           imagem: { type: "string", description: "URL da imagem" },
-          linkbilhetes: { type: "string", description: "Link para compra de bilhetes" }
+          linkBilhetes: { type: "string", description: "Link para compra de bilhetes" },
+          publicado: { type: "boolean", description: "Estado de publicação" },
+          destaque: { type: "boolean", description: "Destacar evento" }
         },
-        required: ["titulo", "dataevento"]
+        required: ["titulo", "data"]
       },
       response: {
         200: {
@@ -98,10 +101,13 @@ export default async function eventosRoutes(fastify) {
         properties: {
           titulo: { type: "string", description: "Título do evento" },
           descricao: { type: "string", description: "Descrição do evento" },
-          dataevento: { type: "string", description: "Data do evento (formato ISO)" },
-          localizacao: { type: "string", description: "Localização do evento" },
+          data: { type: "string", description: "Data do evento (formato ISO)" },
+          datafim: { type: "string", description: "Data de fim do evento (formato ISO)" },
+          local: { type: "string", description: "Localização do evento" },
           imagem: { type: "string", description: "URL da imagem" },
-          linkbilhetes: { type: "string", description: "Link para compra de bilhetes" }
+          linkBilhetes: { type: "string", description: "Link para compra de bilhetes" },
+          publicado: { type: "boolean", description: "Estado de publicação" },
+          destaque: { type: "boolean", description: "Destacar evento" }
         }
       },
       response: {
@@ -160,13 +166,6 @@ export default async function eventosRoutes(fastify) {
           id: { type: "string", description: "ID do evento" }
         },
         required: ["id"]
-      },
-      body: {
-        type: "object",
-        properties: {
-          publicado: { type: "boolean", description: "Estado de publicação" }
-        },
-        required: ["publicado"]
       },
       response: {
         200: {

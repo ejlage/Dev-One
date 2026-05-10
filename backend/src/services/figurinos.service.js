@@ -151,7 +151,7 @@ export const updateFigurinoStatus = async (id, novoEstadoId) => {
 
 // Status string → estadouso ID
 const STATUS_MAP = { DISPONIVEL: 19, ALUGADO: 21, VENDIDO: 17 };
-const ESTADO_TO_STATUS = { 16: 'DISPONIVEL', 17: 'DISPONIVEL', 18: 'DISPONIVEL', 19: 'DISPONIVEL', 20: 'ALUGADO', 21: 'ALUGADO' };
+const ESTADO_TO_STATUS = { 16: 'DISPONIVEL', 17: 'DISPONIVEL', 18: 'DISPONIVEL', 19: 'DISPONIVEL', 20: 'ALUGADO', 21: 'ALUGADO', 22: 'ALUGADO' };
 
 export const createFigurinoStock = async (data, callerUserId, callerRole, auditUserId = null, auditUserNome = '') => {
   const {
@@ -231,7 +231,8 @@ export const getLookupData = async () => {
     prisma.tipofigurino.findMany(),
     prisma.estadouso.findMany({ orderBy: { idestado: 'asc' } }),
   ]);
-  return { tamanhos, generos, cores, modelos, tipos, estadosUso };
+  // Convert Prisma proxy objects to plain objects for proper serialization
+  return JSON.parse(JSON.stringify({ tamanhos, generos, cores, modelos, tipos, estadosUso }));
 };
 
 const mapFigurino = (f) => ({

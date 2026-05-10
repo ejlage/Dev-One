@@ -1,3 +1,4 @@
+import { getProfile } from "../controllers/protected.controller.js";
 import { verifyToken } from "../middleware/auth.middleware.js";
 
 export default async function (fastify) {
@@ -21,12 +22,6 @@ export default async function (fastify) {
       }
     },
     preHandler: verifyToken
-  }, async (req, reply) => {
-    return {
-      message: "Acesso autorizado",
-      user: req.user
-    };
-  });
+  }, getProfile);
 
 }
-

@@ -1,6 +1,5 @@
-import * as direcaoService from "../services/direcao.service.js";
+import * as direcaoController from "../controllers/direcao.controller.js";
 import { verifyToken } from "../middleware/auth.middleware.js";
-import { createAuditLog } from "../services/audit.service.js";
 
 export default async function direcaoRoutes(fastify) {
   fastify.addHook("onRequest", async (req, reply) => {
@@ -22,17 +21,7 @@ export default async function direcaoRoutes(fastify) {
         }
       }
     }
-  }, async (req, reply) => {
-    try {
-      if (!req.user.normalizedRoles.includes("DIRECAO")) {
-        return reply.status(403).send({ success: false, error: "Acesso negado" });
-      }
-      const aulas = await direcaoService.consultarAula();
-      return reply.send({ success: true, data: aulas });
-    } catch (err) {
-      return reply.status(500).send({ success: false, error: err.message });
-    }
-  });
+  }, direcaoController.getAulas);
 
   fastify.get("/aulas/pending", {
     schema: {
@@ -49,17 +38,7 @@ export default async function direcaoRoutes(fastify) {
         }
       }
     }
-  }, async (req, reply) => {
-    try {
-      if (!req.user.normalizedRoles.includes("DIRECAO")) {
-        return reply.status(403).send({ success: false, error: "Acesso negado" });
-      }
-      const aulas = await direcaoService.getPendingAulas();
-      return reply.send({ success: true, data: aulas });
-    } catch (err) {
-      return reply.status(500).send({ success: false, error: err.message });
-    }
-  });
+  }, direcaoController.getPending);
 
   fastify.post("/aulas/:id/approve", {
     schema: {
@@ -89,24 +68,7 @@ export default async function direcaoRoutes(fastify) {
         }
       }
     }
-  }, async (req, reply) => {
-    try {
-      if (!req.user.normalizedRoles.includes("DIRECAO")) {
-        return reply.status(403).send({ success: false, error: "Acesso negado" });
-      }
-      const { id } = req.params;
-      const { salaId } = req.body || {};
-      const result = await direcaoService.avaliarPedido(id, 'aprovar', salaId);
-      await createAuditLog(req.user.id, req.user.nome, 'APPROVE', 'PedidoAula', parseInt(id), 'Aula aprovada');
-      return reply.send({ success: true, data: result });
-    } catch (err) {
-      const message = err.message || '';
-      if (message.includes('já') || message.includes('aprovado') || message.includes('confirmado') || message.includes('estado')) {
-        return reply.status(400).send({ success: false, error: message });
-      }
-      return reply.status(500).send({ success: false, error: err.message });
-    }
-  });
+  }, direcaoController.approve);
 
   fastify.post("/aulas/:id/reject", {
     schema: {
@@ -137,25 +99,7 @@ export default async function direcaoRoutes(fastify) {
         }
       }
     }
-  }, async (req, reply) => {
-    try {
-      if (!req.user.normalizedRoles.includes("DIRECAO")) {
-        return reply.status(403).send({ success: false, error: "Acesso negado" });
-      }
-      const { id } = req.params;
-      const { motivo } = req.body;
-
-      if (!motivo) {
-        return reply.status(400).send({ success: false, error: "Motivo de rejeição obrigatório" });
-      }
-
-      const result = await direcaoService.avaliarPedido(id, 'rejeitar', null, motivo);
-      await createAuditLog(req.user.id, req.user.nome, 'REJECT', 'PedidoAula', parseInt(id), `Aula rejeitada: ${motivo}`);
-      return reply.send({ success: true, data: result });
-    } catch (err) {
-      return reply.status(500).send({ success: false, error: err.message });
-    }
-  });
+  }, direcaoController.reject);
 
   fastify.post("/aulas/:id/realizado", {
     schema: {
@@ -179,23 +123,7 @@ export default async function direcaoRoutes(fastify) {
         }
       }
     }
-  }, async (req, reply) => {
-    try {
-      if (!req.user.normalizedRoles.includes("DIRECAO") && !req.user.normalizedRoles.includes("PROFESSOR")) {
-        return reply.status(403).send({ success: false, error: "Acesso negado" });
-      }
-      const { id } = req.params;
-      const result = await direcaoService.confirmarAulaRealizada(id);
-      await createAuditLog(req.user.id, req.user.nome, 'UPDATE', 'Aula', parseInt(id), 'Realização confirmada');
-      return reply.send({ success: true, data: result });
-    } catch (err) {
-      const message = err.message || '';
-      if (message.includes('passado') || message.includes('futuro') || message.includes('realizar')) {
-        return reply.status(400).send({ success: false, error: message });
-      }
-      return reply.status(500).send({ success: false, error: err.message });
-    }
-  });
+  }, direcaoController.confirmarRealizado);
 
   fastify.get("/relatorio/aulas/:ano/:mes", {
     schema: {
@@ -220,18 +148,7 @@ export default async function direcaoRoutes(fastify) {
         }
       }
     }
-  }, async (req, reply) => {
-    try {
-      if (!req.user.normalizedRoles.includes("DIRECAO")) {
-        return reply.status(403).send({ success: false, error: "Acesso negado" });
-      }
-      const { ano, mes } = req.params;
-      const relatorio = await direcaoService.getRelatorioAulasMensal(ano, mes);
-      return reply.send({ success: true, data: relatorio });
-    } catch (err) {
-      return reply.status(500).send({ success: false, error: err.message });
-    }
-  });
+  }, direcaoController.relatorioAulas);
 
   fastify.get("/relatorio/presencas", {
     schema: {
@@ -256,19 +173,5 @@ export default async function direcaoRoutes(fastify) {
         }
       }
     }
-  }, async (req, reply) => {
-    try {
-      if (!req.user.normalizedRoles.includes("DIRECAO")) {
-        return reply.status(403).send({ success: false, error: "Acesso negado" });
-      }
-      const { datainicio, datafim } = req.query;
-      if (!datainicio || !datafim) {
-        return reply.status(400).send({ success: false, error: "datainicio e datafim obrigatórios" });
-      }
-      const relatorio = await direcaoService.getRelatorioPresencas(datainicio, datafim);
-      return reply.send({ success: true, data: relatorio });
-    } catch (err) {
-      return reply.status(500).send({ success: false, error: err.message });
-    }
-  });
+  }, direcaoController.relatorioPresencas);
 }

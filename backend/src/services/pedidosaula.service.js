@@ -62,31 +62,93 @@ export async function getPedidosByEncarregado(encarregadoUserId) {
 }
 
 export async function getAllPedidosEAulas() {
-  const pedidos = await prisma.pedidodeaula.findMany({ orderBy: { datapedido: 'desc' } });
+  const pedidos = await prisma.$queryRaw`
+    SELECT
+      pa.idpedidoaula,
+      pa.data,
+      pa.horainicio,
+      pa.duracaoaula,
+      pa.maxparticipantes,
+      pa.estadoidestado,
+      e.tipoestado as estado_nome,
+      pa.datapedido,
+      pa.privacidade,
+      s.nomesala as sala_nome,
+      s.idsala as sala_id,
+      m.nome as modalidade_nome,
+      COALESCE(dm.professorutilizadoriduser, pa.professorutilizadoriduser) as professor_id,
+      u.nome as professor_nome,
+      alu.nome as aluno_nome,
+      pa.alunoutilizadoriduser as aluno_utilizador_id,
+      pa.encarregadoeducacaoutilizadoriduser as encarregado_id
+    FROM pedidodeaula pa
+    JOIN estado e ON pa.estadoidestado = e.idestado
+    JOIN sala s ON pa.salaidsala = s.idsala
+    LEFT JOIN disponibilidade_mensal dm ON pa.disponibilidade_mensal_id = dm.iddisponibilidade_mensal
+    LEFT JOIN modalidadeprofessor mp ON dm.modalidadesprofessoridmodalidadeprofessor = mp.idmodalidadeprofessor
+    LEFT JOIN modalidade m ON mp.modalidadeidmodalidade = m.idmodalidade
+    LEFT JOIN utilizador u ON COALESCE(dm.professorutilizadoriduser, pa.professorutilizadoriduser) = u.iduser
+    LEFT JOIN utilizador alu ON pa.alunoutilizadoriduser = alu.iduser
+    ORDER BY pa.data DESC, pa.horainicio DESC
+  `;
 
-  const salas = await prisma.sala.findMany();
-  const estados = await prisma.estado.findMany();
-  const salaMap = Object.fromEntries(salas.map(s => [s.idsala, s.nomesala]));
-  const estadoMap = Object.fromEntries(estados.map(e => [e.idestado, e.tipoestado]));
+  return pedidos.map(p => {
+    let horaFmt = '';
+    const hora = p.horainicio;
+    if (hora) {
+      if (hora instanceof Date) {
+        horaFmt = hora.toISOString().substring(11, 16);
+      } else if (typeof hora === 'string') {
+        horaFmt = hora.substring(0, 5);
+      } else {
+        horaFmt = String(hora).substring(0, 5);
+      }
+    }
 
-  return pedidos.map(p => ({
-    id: String(p.idpedidoaula),
-    alunoId: '',
-    alunoNome: '',
-    encarregadoId: p.encarregadoeducacaoutilizadoriduser ? String(p.encarregadoeducacaoutilizadoriduser) : '',
-    professorId: '',
-    professorNome: '',
-    estudioId: String(p.salaidsala),
-    estudioNome: salaMap[p.salaidsala] || '',
-    modalidade: '',
-    data: p.data ? new Date(p.data).toISOString().split('T')[0] : '',
-    horaInicio: p.horainicio ? String(p.horainicio).substring(11, 16) : '',
-    horaFim: '',
-    duracao: p.duracaoaula || 60,
-    status: estadoMap[p.estadoidestado] || 'PENDENTE',
-    criadoEm: p.datapedido ? new Date(p.datapedido).toISOString() : '',
-    participantes: []
-  }));
+    let duracaoMin = 60;
+    const duracao = p.duracaoaula;
+    if (duracao) {
+      if (duracao instanceof Date) {
+        duracaoMin = duracao.getUTCHours() * 60 + duracao.getUTCMinutes();
+      } else if (typeof duracao === 'string') {
+        const parts = duracao.split(':');
+        if (parts.length >= 2) {
+          duracaoMin = parseInt(parts[0]) * 60 + parseInt(parts[1]);
+        }
+      }
+    }
+
+    const [hH, hM] = horaFmt.split(':').map(Number);
+    const endMin = (hH || 0) * 60 + (hM || 0) + duracaoMin;
+    const horaFim = String(Math.floor(endMin / 60)).padStart(2, '0') + ':' + String(endMin % 60).padStart(2, '0');
+
+    const rawStatus = (p.estado_nome || '').toUpperCase();
+    const statusMap = {
+      'PENDENTE': 'PENDENTE', 'CONFIRMADO': 'CONFIRMADA', 'APROVADO': 'APROVADA',
+      'REJEITADO': 'REJEITADA', 'REALIZADO': 'REALIZADA', 'CANCELADO': 'CANCELADA',
+      'CONCLUÍDO': 'CONCLUÍDA',
+    };
+    const normalizedStatus = statusMap[rawStatus] || rawStatus;
+
+    return {
+      id: String(p.idpedidoaula),
+      alunoId: String(p.aluno_utilizador_id || ''),
+      alunoNome: p.aluno_nome || '',
+      encarregadoId: String(p.encarregado_id || ''),
+      professorId: String(p.professor_id || ''),
+      professorNome: p.professor_nome || '',
+      estudioId: String(p.sala_id || ''),
+      estudioNome: p.sala_nome || '',
+      modalidade: p.modalidade_nome || '',
+      data: p.data ? new Date(p.data).toISOString().split('T')[0] : '',
+      horaInicio: horaFmt,
+      horaFim,
+      duracao: duracaoMin,
+      status: normalizedStatus,
+      criadoEm: p.datapedido ? new Date(p.datapedido).toISOString() : '',
+      participantes: []
+    };
+  });
 }
 
 export async function getPedidosPendentes() {
