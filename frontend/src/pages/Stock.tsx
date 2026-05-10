@@ -27,7 +27,7 @@ const FORM_VAZIO = {
 type ImagemMode = 'url' | 'ficheiro';
 
 export function Stock() {
-  const { user } = useAuth();
+  const { user, activeRole } = useAuth();
   const navigate = useNavigate();
   const [figurinos, setFigurinos] = useState<Figurino[]>([]);
   const [lookup, setLookup] = useState<{ tamanhos: any[]; generos: any[]; cores: any[]; tipos: any[]; estadosUso: any[] }>({
@@ -357,16 +357,16 @@ export function Stock() {
                     <div className="flex justify-between">
                       <span>Tamanho:</span><span className="text-[#0a1a17]" style={{ fontWeight: 600 }}>{figurino.tamanho}</span>
                     </div>
-                    {(figurino as any).cor && (
+                    {figurino.cor && (
                       <div className="flex justify-between">
-                        <span>Cor:</span><span className="text-[#0a1a17]">{(figurino as any).cor}</span>
+                        <span>Cor:</span><span className="text-[#0a1a17]">{figurino.cor}</span>
                       </div>
                     )}
-                    {(figurino as any).quantidadeDisponivel !== undefined && (
+                    {figurino.quantidadeDisponivel !== undefined && (
                       <div className="flex justify-between">
                         <span>Disponível:</span>
                         <span className="text-[#0a1a17]" style={{ fontWeight: 600 }}>
-                          {(figurino as any).quantidadeDisponivel}/{(figurino as any).quantidadeTotal}
+                          {figurino.quantidadeDisponivel}/{figurino.quantidadeTotal}
                         </span>
                       </div>
                     )}
@@ -384,7 +384,7 @@ export function Stock() {
                       <option value="DISPONIVEL">Marcar como Disponível</option>
                       <option value="ALUGADO">Marcar como Alugado</option>
                     </select>
-                    {user?.role === 'DIRECAO' && (
+                    {activeRole === 'DIRECAO' && (
                       <button
                         onClick={() => navigate(`/dashboard/marketplace?figurinoId=${figurino.id}`)}
                         className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#0d6b5e] text-white rounded-lg text-sm hover:bg-[#0a5a4e] transition-colors"

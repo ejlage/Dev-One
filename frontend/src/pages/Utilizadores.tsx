@@ -2,11 +2,13 @@ import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router';
 import { User, UserRole } from '../types';
 import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import { UserPlus, Users, Search, ArrowLeft, Printer, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { Toaster } from '../components/ui/sonner';
 
 export function Utilizadores() {
+  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [showNovoForm, setShowNovoForm] = useState(false);
@@ -47,8 +49,9 @@ export function Utilizadores() {
   const [submitting, setSubmitting] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
   const [editFormData, setEditFormData] = useState({ nome: '', email: '', telemovel: '', role: '', encarregadoId: '' });
-  const [editRole, setEditRole] = useState('');
+  const [editRole, setEditRole] = useState<string | string[]>('');
   const [editModalidades, setEditModalidades] = useState<string[]>(['']);
+  const [editSelectedRoles, setEditSelectedRoles] = useState<string[]>([]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -146,30 +149,40 @@ export function Utilizadores() {
     return usersFiltrados;
   };
 
-  const getRoleBadge = (role: UserRole) => {
-    const styles = {
+  const getRoleBadge = (role: UserRole | UserRole[]) => {
+    const roles = Array.isArray(role) ? role : [role];
+    const styles: Record<string, string> = {
       DIRECAO: 'bg-[#c9a84c]/20 text-[#8a6d1e]',
       PROFESSOR: 'bg-[#e2f0ed] text-[#0d6b5e]',
       ENCARREGADO: 'bg-teal-100 text-teal-800',
-      ALUNO: 'bg-orange-100 text-orange-800'
+      ALUNO: 'bg-orange-100 text-orange-800',
+      UTILIZADOR: 'bg-gray-100 text-gray-800'
     };
-    
-    const labels = {
+    const labels: Record<string, string> = {
       DIRECAO: 'Direção',
       PROFESSOR: 'Professor',
       ENCARREGADO: 'Encarregado',
-      ALUNO: 'Aluno'
+      ALUNO: 'Aluno',
+      UTILIZADOR: 'Utilizador'
     };
-
+    
     return (
-      <span className={`px-3 py-1 rounded-full text-sm ${styles[role]}`}>
-        {labels[role]}
-      </span>
+      <div className="flex flex-wrap gap-1">
+        {roles.map(r => (
+          <span key={r} className={`px-3 py-1 rounded-full text-sm ${styles[r] || styles.UTILIZADOR}`}>
+            {labels[r] || r}
+          </span>
+        ))}
+      </div>
     );
   };
 
-  const getRoleCount = (role: UserRole) => {
-    return users.filter(u => u.role === role).length;
+  const getRoleCount = (role: string) => {
+    return users.filter(u => {
+      const uRole = u.role;
+      if (Array.isArray(uRole)) return uRole.includes(role as UserRole);
+      return uRole === role;
+    }).length;
   };
 
   const handleInactivate = async (id: number) => {
@@ -273,12 +286,15 @@ export function Utilizadores() {
 
   const handleEditClick = async (user: any) => {
     setEditingUser(user);
-    setEditRole(user.role);
+    const roleVal = user.role;
+    const roleArray = Array.isArray(roleVal) ? roleVal : [roleVal].filter(Boolean);
+    setEditSelectedRoles(roleArray);
+    setEditRole(Array.isArray(roleVal) ? roleVal[0] : roleVal);
     setEditFormData({
       nome: user.nome,
       email: user.email,
       telemovel: user.telemovel || '',
-      role: user.role,
+      role: Array.isArray(roleVal) ? roleVal[0] : roleVal,
       encarregadoId: user.encarregadoId || ''
     });
 
@@ -307,18 +323,19 @@ export function Utilizadores() {
     
     setSubmitting(true);
     try {
+      const sentRoles = editSelectedRoles.length > 0 ? editSelectedRoles : [String(editRole)];
       const updateData: any = {
         nome: editFormData.nome,
         email: editFormData.email,
         telemovel: editFormData.telemovel,
-        role: editRole
+        role: sentRoles
       };
 
-      if (editRole === 'ALUNO') {
+      if (sentRoles.includes('ALUNO')) {
         updateData.encarregadoId = editFormData.encarregadoId || null;
       }
 
-      if (editRole === 'PROFESSOR') {
+      if (sentRoles.includes('PROFESSOR')) {
         const modalidades = editModalidades.filter(m => m.trim() !== '');
         if (modalidades.length > 0) {
           updateData.modalidades = modalidades;
@@ -335,7 +352,8 @@ export function Utilizadores() {
       setEditingUser(null);
     } catch (error) {
       console.error('Error updating user:', error);
-      toast.error('Erro ao guardar: ' + ((error as any)?.message || 'Tente novamente'));
+      const message = error instanceof Error ? error.message : 'Tente novamente';
+      toast.error('Erro ao guardar: ' + message);
     } finally {
       setSubmitting(false);
     }
@@ -681,12 +699,18 @@ export function Utilizadores() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-sm space-y-1">
-                          {user.role === 'ALUNO' && user.encarregadoId && (
+                          {((uRole: any) => {
+                            const isAluno = Array.isArray(uRole) ? uRole.includes('ALUNO') : uRole === 'ALUNO';
+                            return isAluno && user.encarregadoId;
+                          })(user.role) && (
                             <div className="text-[#4d7068]">
                               Encarregado: <strong className="text-[#0a1a17]">{getEncarregadoNome(user.encarregadoId)}</strong>
                             </div>
                           )}
-                          {user.role === 'ENCARREGADO' && user.alunosIds && user.alunosIds.length > 0 && (
+                          {((uRole: any) => {
+                            const isEncarregado = Array.isArray(uRole) ? uRole.includes('ENCARREGADO') : uRole === 'ENCARREGADO';
+                            return isEncarregado && user.alunosIds && user.alunosIds.length > 0;
+                          })(user.role) && (
                             <div className="text-[#4d7068]">
                               Alunos: <strong className="text-[#0a1a17]">{getAlunosNomes(user.alunosIds).join(', ')}</strong>
                             </div>
@@ -771,21 +795,34 @@ export function Utilizadores() {
                   className="w-full px-4 py-2 border border-[#0d6b5e]/20 rounded-lg bg-[#f4f9f8] focus:outline-none focus:border-[#0d6b5e]"
                 />
               </div>
-              <div>
+<div>
                 <label className="block text-sm mb-2 text-[#4d7068]">Tipo de Utilizador</label>
-                <select 
-                  value={editRole}
-                  onChange={(e) => setEditRole(e.target.value)}
-                  className="w-full px-4 py-2 border border-[#0d6b5e]/20 rounded-lg bg-[#f4f9f8] focus:outline-none focus:border-[#0d6b5e] text-[#0a1a17]"
-                  required
-                >
-                  <option value="ALUNO">Aluno</option>
-                  <option value="ENCARREGADO">Encarregado</option>
-                  <option value="PROFESSOR">Professor</option>
-                  <option value="DIRECAO">Direção</option>
-                </select>
+                <div className="space-y-2">
+                  {['ALUNO', 'ENCARREGADO', 'PROFESSOR', 'DIRECAO'].map(role => (
+                    <label key={role} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editSelectedRoles.includes(role)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setEditSelectedRoles([...editSelectedRoles, role]);
+                          } else {
+                            setEditSelectedRoles(editSelectedRoles.filter(r => r !== role));
+                          }
+                        }}
+                        className="w-4 h-4 text-[#0d6b5e] rounded border-[#0d6b5e]/30 focus:ring-[#0d6b5e]"
+                      />
+                      <span className="text-sm">
+                        {role === 'ALUNO' && 'Aluno'}
+                        {role === 'ENCARREGADO' && 'Encarregado'}
+                        {role === 'PROFESSOR' && 'Professor'}
+                        {role === 'DIRECAO' && 'Direção'}
+                      </span>
+                    </label>
+                  ))}
+                </div>
               </div>
-{editRole === 'ALUNO' && (
+              {editSelectedRoles.includes('ALUNO') && (
                 <div>
                   <label className="block text-sm mb-2 text-[#4d7068]">Encarregado de Educação</label>
                   <select 
@@ -800,8 +837,7 @@ export function Utilizadores() {
                   </select>
                 </div>
               )}
-
-              {editRole === 'PROFESSOR' && (
+              {editSelectedRoles.includes('PROFESSOR') && (
                 <div>
                   <label className="block text-sm mb-2 text-[#4d7068]">Modalidades</label>
                   {editModalidades.map((modalidade, index) => {

@@ -4,8 +4,8 @@ import api from '../services/api';
 
 export function Contactos() {
   const [form, setForm] = useState({ nome: '', email: '', telemovel: '', mensagem: '' });
-  const [loading, setLoading] = useState(false);
   const [enviado, setEnviado] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState('');
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -17,9 +17,13 @@ export function Contactos() {
     setErro('');
     setLoading(true);
     try {
-      const res = await api.submitContact(form);
-      if (res.success) setEnviado(true);
-      else setErro('Erro ao enviar. Por favor tenta novamente.');
+      await api.submitContact({
+        nome: form.nome,
+        email: form.email,
+        telemovel: form.telemovel,
+        mensagem: form.mensagem,
+      });
+      setEnviado(true);
     } catch {
       setErro('Erro ao enviar. Por favor tenta novamente.');
     } finally {

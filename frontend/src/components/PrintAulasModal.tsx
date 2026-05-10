@@ -39,7 +39,7 @@ export function PrintAulasModal({ currentUser, onClose }: Props) {
     const fetchData = async () => {
       const [usersRes, aulasRes] = await Promise.all([
         api.getUsers(),
-        api.getAulas()
+        api.consultarAula()
       ]);
       if (usersRes.success) setUsers(usersRes.data || []);
       if (aulasRes.success) setAulas(aulasRes.data || []);

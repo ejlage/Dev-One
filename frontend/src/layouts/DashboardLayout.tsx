@@ -1,11 +1,12 @@
 import { useEffect } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router';
 import { useAuth } from '../contexts/AuthContext';
-import { LogOut, Home, Calendar, ShoppingBag, Package, Users, BookOpen, Clock, Ticket, ClipboardList } from 'lucide-react';
+import { LogOut, Home, Calendar, ShoppingBag, Package, Users, BookOpen, Clock, Ticket, BarChart3, Shield } from 'lucide-react';
 import { NotificacoesBell } from '../components/NotificacoesBell';
+import { hasMultipleRoles, getRoleLabel, getMainRole } from '../utils/roleUtils';
 
 export function DashboardLayout() {
-  const { user, logout, loading } = useAuth();
+  const { user, activeRole, setActiveRole, logout, loading, hasRole } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -24,6 +25,8 @@ export function DashboardLayout() {
     return null;
   }
 
+  const currentRole = activeRole || getMainRole(user.role);
+
   const isActive = (path: string) => {
     return location.pathname === path;
   };
@@ -34,6 +37,9 @@ export function DashboardLayout() {
     ENCARREGADO: 'Encarregado',
     ALUNO: 'Aluno',
   };
+
+  const userRoles = Array.isArray(user.role) ? user.role : [user.role];
+  const showRoleSwitcher = hasMultipleRoles(user.role);
 
   const navItems = [
     {
@@ -61,6 +67,12 @@ export function DashboardLayout() {
       roles: ['ALUNO', 'ENCARREGADO', 'PROFESSOR', 'DIRECAO']
     },
     {
+      path: '/dashboard/extrato',
+      icon: BarChart3,
+      label: 'Extrato',
+      roles: ['ALUNO', 'ENCARREGADO', 'PROFESSOR', 'DIRECAO']
+    },
+    {
       path: '/dashboard/marketplace',
       icon: ShoppingBag,
       label: 'Marketplace',
@@ -85,12 +97,12 @@ export function DashboardLayout() {
       roles: ['DIRECAO']
     },
     {
-      path: '/dashboard/inscricoes',
-      icon: ClipboardList,
-      label: 'Inscrições',
+      path: '/dashboard/auditoria',
+      icon: Shield,
+      label: 'Auditoria',
       roles: ['DIRECAO']
     }
-  ].filter(item => item.roles.includes(user.role));
+  ].filter(item => item.roles.includes(activeRole));
 
   return (
     <div className="min-h-screen bg-[#f4f9f8]">
@@ -105,9 +117,25 @@ export function DashboardLayout() {
               <div className="hidden md:flex items-center gap-2">
                 <span className="text-white/20">|</span>
                 <span className="text-xs text-white/50">{user.nome}</span>
-                <span className="text-xs bg-[#c9a84c]/20 text-[#c9a84c] px-2 py-0.5 rounded-full">
-                  {roleLabel[user.role]}
-                </span>
+                {showRoleSwitcher ? (
+                  <div className="relative">
+                    <select
+                      value={activeRole}
+                      onChange={(e) => setActiveRole(e.target.value)}
+                      className="text-xs bg-[#c9a84c]/20 text-[#c9a84c] px-2 py-0.5 rounded-full cursor-pointer appearance-none pr-6 focus:outline-none"
+                    >
+                      {userRoles.map(r => (
+                        <option key={r} value={r} className="bg-[#0a1a17] text-white">
+                          {getRoleLabel(r)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <span className="text-xs bg-[#c9a84c]/20 text-[#c9a84c] px-2 py-0.5 rounded-full">
+                    {getRoleLabel(activeRole)}
+                  </span>
+                )}
               </div>
             </Link>
 

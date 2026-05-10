@@ -1,8 +1,8 @@
 import * as aulasService from "../services/aulas.service.js";
 
-export const getAllAulas = async (req, reply) => {
+export const listarAulas = async (req, reply) => {
   try {
-    const aulas = await aulasService.getAllAulas();
+    const aulas = await aulasService.listarAulas();
     return reply.send({ success: true, data: aulas });
   } catch (err) {
     return reply.status(500).send({ success: false, error: err.message });
@@ -12,7 +12,7 @@ export const getAllAulas = async (req, reply) => {
 export const getAulaById = async (req, reply) => {
   try {
     const { id } = req.params;
-    const aula = await aulasService.getAulaById(id);
+    const aula = await aulasService.consultarAula(id);
 
     if (!aula) {
       return reply.status(404).send({ success: false, error: "Aula não encontrada" });
@@ -24,9 +24,24 @@ export const getAulaById = async (req, reply) => {
   }
 };
 
-export const createAula = async (req, reply) => {
+export const obterAulaDoPedido = async (req, reply) => {
   try {
-    const aula = await aulasService.createAula(req.body);
+    const { pedidoId } = req.params;
+    const aula = await aulasService.obterAulaDoPedido(pedidoId);
+
+    if (!aula) {
+      return reply.send({ success: true, data: null, message: "Nenhuma aula encontrada para este pedido" });
+    }
+
+    return reply.send({ success: true, data: aula });
+  } catch (err) {
+    return reply.status(500).send({ success: false, error: err.message });
+  }
+};
+
+export const criarAula = async (req, reply) => {
+  try {
+    const aula = await aulasService.criarAula(req.body);
     return reply.status(201).send({ success: true, data: aula });
   } catch (err) {
     return reply.status(400).send({ success: false, error: err.message });
@@ -68,10 +83,10 @@ export const confirmAula = async (req, reply) => {
   }
 };
 
-export const cancelAula = async (req, reply) => {
+export const cancelarAula = async (req, reply) => {
   try {
     const { id } = req.params;
-    const aula = await aulasService.cancelAula(id);
+    const aula = await aulasService.cancelarAula(id);
     return reply.send({ success: true, data: aula });
   } catch (err) {
     return reply.status(400).send({ success: false, error: err.message });
@@ -89,11 +104,11 @@ export const remarcarAula = async (req, reply) => {
   }
 };
 
-export const joinAula = async (req, reply) => {
+export const inserirAlunoAula = async (req, reply) => {
   try {
     const { id } = req.params;
     const { alunoId } = req.body;
-    const result = await aulasService.joinAula(id, alunoId);
+    const result = await aulasService.inserirAlunoAula(id, alunoId);
     return reply.status(201).send({ success: true, data: result });
   } catch (err) {
     return reply.status(400).send({ success: false, error: err.message });

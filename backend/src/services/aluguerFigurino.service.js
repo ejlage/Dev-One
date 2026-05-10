@@ -1,4 +1,5 @@
 import prisma from "../config/db.js";
+import { createAuditLog } from "./audit.service.js";
 
 const transacaoInclude = {
   estado: true,
@@ -27,7 +28,7 @@ export const getTransacoesByAnuncio = async (anuncioId) => {
   });
 };
 
-export const createTransacao = async (data) => {
+export const registarTransacao = async (data, userId = null, userNome = '') => {
   const {
     quantidade,
     datatransacao,
@@ -117,10 +118,12 @@ export const createTransacao = async (data) => {
 
   await criarNotificacaoReserva(transacao.idtransacao, anuncioidanuncio);
 
+  await createAuditLog(userId ? parseInt(userId) : null, userNome, 'CREATE', 'TransacaoFigurino', transacao.idtransacao, 'Reserva de figurino criada');
+
   return transacao;
 };
 
-export const updateTransacaoStatus = async (id, novoEstadoId, direcaoUserId, motivorejeicao) => {
+export const avaliarPedidoReserva = async (id, novoEstadoId, direcaoUserId, motivorejeicao) => {
   const transacao = await prisma.transacaofigurino.update({
     where: { idtransacao: parseInt(id) },
     data: {
@@ -140,6 +143,10 @@ export const updateTransacaoStatus = async (id, novoEstadoId, direcaoUserId, mot
       data: { quantidade: { decrement: transacao.quantidade } },
     });
   }
+
+  try {
+    await createAuditLog(direcaoUserId ? parseInt(direcaoUserId) : null, 'Direção', 'UPDATE', 'TransacaoFigurino', parseInt(id), `Estado atualizado para ${transacao.estado?.tipoestado || novoEstadoStr}`);
+  } catch (_) {}
 
   return transacao;
 };

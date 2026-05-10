@@ -1,6 +1,7 @@
 import prisma from "../config/db.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import { createAuditLog } from "./audit.service.js";
 
 /**
  * Registar um novo utilizador
@@ -40,7 +41,7 @@ export const register = async (nome, email, telemovel, password, role = "utiliza
     id: user.iduser,
     nome: user.nome,
     email: user.email,
-    role: user.role
+    role: parseRole(user.role)
   };
 };
 
@@ -72,21 +73,51 @@ export const login = async (email, password) => {
     throw new Error("Utilizador inativo");
   }
 
-  // Gerar token
+  // Detetar perfis existentes e construir roles
+  const userRoles = [];
+
+  // Consultar tabelas de perfil
+  const [direcao, professor, encarregado, aluno] = await Promise.all([
+    prisma.direcao.findUnique({ where: { utilizadoriduser: user.iduser } }),
+    prisma.professor.findUnique({ where: { utilizadoriduser: user.iduser } }),
+    prisma.encarregadoeducacao.findUnique({ where: { utilizadoriduser: user.iduser } }),
+    prisma.aluno.findUnique({ where: { utilizadoriduser: user.iduser } })
+  ]);
+
+  if (direcao) userRoles.push('DIRECAO');
+  if (professor) userRoles.push('PROFESSOR');
+  if (encarregado) userRoles.push('ENCARREGADO');
+  if (aluno) userRoles.push('ALUNO');
+
+  // Se não tem nenhum perfil, é UTILIZADOR base
+  if (userRoles.length === 0) userRoles.push('UTILIZADOR');
+
+   // Se só tem 1 role, manter como string (compatibilidade)
+   // Se tem múltiplas, retornar array
+   const role = userRoles.length === 1 ? userRoles[0] : [...userRoles];
+
+    // Available roles para o frontend usar no switcher
+   const availableRoles = [...userRoles];
   const token = jwt.sign(
-    { id: user.iduser, role: user.role },
+    { id: user.iduser, role: role, availableRoles: availableRoles, tokenVersion: user.tokenVersion },
     process.env.JWT_SECRET,
-    { expiresIn: "7d" }
+    { expiresIn: "1h" }
   );
 
+  await createAuditLog(user.iduser, user.nome, 'LOGIN', 'Utilizador', user.iduser, 'Login bem-sucedido');
+
   return {
+    success: true,
+    message: "Login com sucesso",
     user: {
       id: user.iduser,
       nome: user.nome,
       email: user.email,
       telemovel: user.telemovel,
-      role: user.role,
-      estado: user.estado
+      role: role,
+      availableRoles: availableRoles || userRoles,
+      estado: user.estado,
+      alunosIds: []
     },
     token
   };
@@ -109,11 +140,34 @@ export const validateToken = async (token) => {
       throw new Error("Utilizador inválido ou inativo");
     }
 
+    // Verificar revogação de tokens (tokenVersion não corresponde)
+    if (decoded.tokenVersion !== undefined && user.tokenVersion !== decoded.tokenVersion) {
+      throw new Error("Token revogado");
+    }
+
+    // Detetar perfis existentes para availableRoles
+    const userRoles = [];
+    const [direcao, professor, encarregado, aluno] = await Promise.all([
+      prisma.direcao.findUnique({ where: { utilizadoriduser: user.iduser } }),
+      prisma.professor.findUnique({ where: { utilizadoriduser: user.iduser } }),
+      prisma.encarregadoeducacao.findUnique({ where: { utilizadoriduser: user.iduser } }),
+      prisma.aluno.findUnique({ where: { utilizadoriduser: user.iduser } })
+    ]);
+
+    if (direcao) userRoles.push('DIRECAO');
+    if (professor) userRoles.push('PROFESSOR');
+    if (encarregado) userRoles.push('ENCARREGADO');
+    if (aluno) userRoles.push('ALUNO');
+    if (userRoles.length === 0) userRoles.push('UTILIZADOR');
+
+    const role = userRoles.length === 1 ? userRoles[0] : userRoles;
+
     return {
       id: user.iduser,
       nome: user.nome,
       email: user.email,
-      role: user.role
+      role: role,
+      availableRoles: userRoles
     };
   } catch (error) {
     throw new Error("Token inválido");
@@ -176,6 +230,15 @@ export const resetPassword = async (email, password) => {
  * @param {number} userId - ID do utilizador
  * @returns {Promise<object>} Dados do utilizador
  */
+const parseRole = (role) => {
+  if (!role) return 'UTILIZADOR';
+  try {
+    const parsed = JSON.parse(role);
+    if (Array.isArray(parsed)) return parsed;
+  } catch (_) {}
+  return role;
+};
+
 export const getProfile = async (userId) => {
   const user = await prisma.utilizador.findUnique({
     where: { iduser: userId }
@@ -190,7 +253,7 @@ export const getProfile = async (userId) => {
     nome: user.nome,
     email: user.email,
     telemovel: user.telemovel,
-    role: user.role,
+    role: parseRole(user.role),
     estado: user.estado
   };
 };
@@ -222,6 +285,6 @@ export const updateProfile = async (userId, data) => {
     nome: user.nome,
     email: user.email,
     telemovel: user.telemovel,
-    role: user.role
+    role: parseRole(user.role)
   };
 };

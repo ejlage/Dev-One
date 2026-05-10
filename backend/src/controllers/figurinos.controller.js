@@ -9,10 +9,10 @@ export const getAllFigurinos = async (req, reply) => {
   }
 };
 
-export const getFigurinoById = async (req, reply) => {
+export const consultarFigurino = async (req, reply) => {
   try {
     const { id } = req.params;
-    const figurino = await figurinosService.getFigurinoById(parseInt(id));
+    const figurino = await figurinosService.consultarFigurino(parseInt(id));
     if (!figurino) {
       return reply.status(404).send({ success: false, error: "Figurino não encontrado" });
     }

@@ -4,7 +4,50 @@ import bcrypt from "bcrypt";
 
 export default async function (fastify) {
 
-  fastify.post("/register", async (req, reply) => {
+  fastify.post("/register", {
+    schema: {
+      tags: ["Autenticação"],
+      description: "Regista um novo utilizador na aplicação",
+      body: {
+        type: "object",
+        required: ["nome", "email", "telemovel", "password"],
+        properties: {
+          nome: { type: "string", description: "Nome completo do utilizador" },
+          email: { type: "string", format: "email", description: "Email do utilizador" },
+          telemovel: { type: "string", description: "Número de telemóvel" },
+          password: { type: "string", minLength: 6, description: "Password do utilizador" }
+        }
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            message: { type: "string" },
+            user: {
+              type: "object",
+              properties: {
+                id: { type: "integer" },
+                nome: { type: "string" },
+                email: { type: "string" }
+              }
+            }
+          }
+        },
+        400: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        },
+        500: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        }
+      }
+    }
+  }, async (req, reply) => {
     try {
       const { nome, email, telemovel, password } = req.body;
 
@@ -54,7 +97,52 @@ export default async function (fastify) {
     }
   });
 
-  fastify.post("/login", async (req, reply) => {
+  fastify.post("/login", {
+    schema: {
+      tags: ["Autenticação"],
+      description: "Efetua login e retorna token JWT",
+      body: {
+        type: "object",
+        required: ["email", "password"],
+        properties: {
+          email: { type: "string", format: "email", description: "Email do utilizador" },
+          password: { type: "string", description: "Password do utilizador" }
+        }
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            message: { type: "string" },
+            token: { type: "string" },
+            user: {
+              type: "object",
+              properties: {
+                id: { type: "integer" },
+                nome: { type: "string" },
+                email: { type: "string" },
+                role: { type: "string" },
+                alunosIds: { type: "array", items: { type: "string" } }
+              }
+            }
+          }
+        },
+        400: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        },
+        500: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        }
+      }
+    }
+  }, async (req, reply) => {
     try {
       const { email, password } = req.body;
 
@@ -79,7 +167,8 @@ export default async function (fastify) {
       const token = jwt.sign(
         {
           id: user.iduser,
-          role: user.role
+          role: user.role,
+          tokenVersion: user.tokenVersion,
         },
         process.env.JWT_SECRET,
         { expiresIn: "1h" }
@@ -115,14 +204,62 @@ export default async function (fastify) {
     }
   });
 
-  fastify.post("/logout", async (req, reply) => {
+  fastify.post("/logout", {
+    schema: {
+      tags: ["Autenticação"],
+      description: "Efetua logout (remove token do cliente)",
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            message: { type: "string" }
+          }
+        }
+      }
+    }
+  }, async (req, reply) => {
     return {
       success: true,
       message: "Logout realizado"
     };
   });
 
-  fastify.post("/forgot-password", async (req, reply) => {
+  fastify.post("/forgot-password", {
+    schema: {
+      tags: ["Autenticação"],
+      description: "Gera token para recuperação de password",
+      body: {
+        type: "object",
+        required: ["email"],
+        properties: {
+          email: { type: "string", format: "email", description: "Email do utilizador" }
+        }
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            message: { type: "string" },
+            token: { type: "string" }
+          }
+        },
+        400: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        },
+        404: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        }
+      }
+    }
+  }, async (req, reply) => {
     const { email } = req.body;
 
     if (!email) {
@@ -147,8 +284,6 @@ export default async function (fastify) {
       { expiresIn: "1h" }
     );
 
-    console.log(`[Auth] Password reset token for ${email}: ${resetToken}`);
-
     return {
       success: true,
       message: "Token de recuperação gerado",
@@ -156,7 +291,41 @@ export default async function (fastify) {
     };
   });
 
-  fastify.post("/reset-password", async (req, reply) => {
+  fastify.post("/reset-password", {
+    schema: {
+      tags: ["Autenticação"],
+      description: "Altera password usando token de recuperação",
+      body: {
+        type: "object",
+        required: ["token", "password"],
+        properties: {
+          token: { type: "string", description: "Token de recuperação" },
+          password: { type: "string", minLength: 6, description: "Nova password" }
+        }
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            message: { type: "string" }
+          }
+        },
+        400: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        },
+        401: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        }
+      }
+    }
+  }, async (req, reply) => {
     const { token, password } = req.body;
 
     if (!token || !password) {

@@ -674,7 +674,7 @@ function NovaTurmaForm({
 // Página principal
 // ══════════════════════════════════════════════════════════════════════════════
 export function Turmas() {
-  const { user } = useAuth();
+  const { user, activeRole } = useAuth();
   const [turmas, setTurmas] = useState<Turma[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [salas, setSalas] = useState<{ id: string; nome: string; capacidade: number }[]>([]);
@@ -706,7 +706,7 @@ export function Turmas() {
       }
     };
     fetchData();
-  }, []);
+  }, [user, activeRole]);
 
   if (!user) return null;
 
@@ -715,10 +715,10 @@ export function Turmas() {
   const todosProfessores = users.filter(u => u.role === 'PROFESSOR');
 
 const turmasFiltradas = (turmas || []).filter(t => {
-    if (user.role === 'PROFESSOR' && t.professorId !== user.id) return false;
+    if (activeRole === 'PROFESSOR' && t.professorId !== user.id) return false;
     if (filtroModalidade !== 'TODAS' && t.modalidade !== filtroModalidade) return false;
     if (filtroNivel !== 'TODOS' && t.nivel !== filtroNivel) return false;
-    if (user.role === 'DIRECAO' && filtroProf !== 'TODOS' && t.professorId !== filtroProf) return false;
+    if (activeRole === 'DIRECAO' && filtroProf !== 'TODOS' && t.professorId !== filtroProf) return false;
     return true;
   });
 
@@ -795,7 +795,7 @@ const turmasFiltradas = (turmas || []).filter(t => {
     }
   };
 
-  const isProfOrDir = user.role === 'PROFESSOR' || user.role === 'DIRECAO';
+  const isProfOrDir = activeRole === 'PROFESSOR' || activeRole === 'DIRECAO';
 
   return (
     <div className="min-h-screen bg-[#f4f9f8]">
@@ -816,13 +816,13 @@ const turmasFiltradas = (turmas || []).filter(t => {
             <div>
               <h1 className="text-3xl text-white mb-1">Grupos</h1>
               <p className="text-white/50 text-sm">
-                {user.role === 'PROFESSOR'   && 'Crie e gira os seus grupos. Defina como aparecem para os encarregados.'}
-                {user.role === 'ENCARREGADO' && 'Inscreva os seus educandos nos grupos disponíveis.'}
-                {user.role === 'DIRECAO'     && 'Visão geral de todos os grupos da escola.'}
-                {user.role === 'ALUNO'       && 'Grupos em que está inscrito.'}
+                {activeRole === 'PROFESSOR'   && 'Crie e gira os seus grupos. Defina como aparecem para os encarregados.'}
+                {activeRole === 'ENCARREGADO' && 'Inscreva os seus educandos nos grupos disponíveis.'}
+                {activeRole === 'DIRECAO'     && 'Visão geral de todos os grupos da escola.'}
+                {activeRole === 'ALUNO'       && 'Grupos em que está inscrito.'}
               </p>
             </div>
-            {user.role === 'PROFESSOR' && !showForm && (
+            {activeRole === 'PROFESSOR' && !showForm && (
               <button onClick={() => { setEditando(null); setShowForm(true); }}
                 className="flex items-center gap-2 bg-[#c9a84c] text-[#0a1a17] px-5 py-2.5 rounded-lg hover:bg-[#e8c97a] transition-colors"
                 style={{ fontWeight: 600 }}>
@@ -851,7 +851,7 @@ const turmasFiltradas = (turmas || []).filter(t => {
                 <option value="TODOS">Todos os níveis</option>
                 {NIVEIS.map(n => <option key={n} value={n}>{n}</option>)}
               </select>
-              {user.role === 'DIRECAO' && (
+              {activeRole === 'DIRECAO' && (
                 <select value={filtroProf} onChange={e => setFiltroProf(e.target.value)}
                   className="px-3 py-1.5 rounded-lg text-sm bg-white/10 text-white border border-white/20 focus:outline-none focus:border-[#c9a84c]">
                   <option value="TODOS">Todos os professores</option>
@@ -887,9 +887,9 @@ const turmasFiltradas = (turmas || []).filter(t => {
               <div className="bg-white rounded-2xl shadow-sm p-12 text-center border border-[#0d6b5e]/5">
                 <BookOpen className="w-16 h-16 text-[#0d6b5e]/20 mx-auto mb-4" />
                 <p className="text-[#4d7068] mb-2">
-                  {user.role === 'PROFESSOR' ? 'Ainda não criou nenhum grupo.' : 'Nenhum grupo encontrado.'}
+                  {activeRole === 'PROFESSOR' ? 'Ainda não criou nenhum grupo.' : 'Nenhum grupo encontrado.'}
                 </p>
-                {user.role === 'PROFESSOR' && (
+                {activeRole === 'PROFESSOR' && (
                   <button onClick={() => setShowForm(true)}
                     className="mt-2 flex items-center gap-2 bg-[#c9a84c] text-[#0a1a17] px-5 py-2.5 rounded-lg hover:bg-[#e8c97a] transition-colors mx-auto text-sm"
                     style={{ fontWeight: 600 }}>
@@ -924,7 +924,7 @@ const turmasFiltradas = (turmas || []).filter(t => {
                       onArchive={handleArchive}
                       onEdit={tt => { setEditando(tt); setShowForm(true); }}
                       onRemoveAluno={handleRemoveAluno}
-                      onInscreverAluno={user.role === 'PROFESSOR' ? handleInscrever : undefined}
+                      onInscreverAluno={activeRole === 'PROFESSOR' ? handleInscrever : undefined}
                     />
                   ))}
                 </div>
@@ -934,7 +934,7 @@ const turmasFiltradas = (turmas || []).filter(t => {
         )}
 
         {/* ENCARREGADO */}
-        {user.role === 'ENCARREGADO' && (
+        {activeRole === 'ENCARREGADO' && (
           <>
             {turmasParaEnc.length === 0 ? (
               <div className="bg-white rounded-2xl shadow-sm p-12 text-center border border-[#0d6b5e]/5">
@@ -964,7 +964,7 @@ const turmasFiltradas = (turmas || []).filter(t => {
         )}
 
         {/* ALUNO */}
-        {user.role === 'ALUNO' && (
+        {activeRole === 'ALUNO' && (
           <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-5">
             {(turmas || []).filter(t => (t.alunosInscritos || []).some(a => a.alunoId === user.id)).map(t => (
               <div key={t.id} className="bg-white rounded-2xl shadow-sm border border-[#0d6b5e]/5 overflow-hidden">

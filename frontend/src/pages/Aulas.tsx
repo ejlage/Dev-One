@@ -5,7 +5,7 @@ import { PedidoAula, AulaStatus } from '../types';
 import api from '../services/api';
 import {
   Calendar, Clock, MapPin, User, CheckCircle, XCircle,
-  Plus, Filter, ArrowLeft, Users, UserPlus, ChevronDown, Music2, Bell,
+  Filter, ArrowLeft, Users, UserPlus, ChevronDown, Music2, Bell,
   CalendarOff
 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -32,7 +32,7 @@ const getModalidadeStyle = (modalidade: string) =>
   MODALIDADE_COLORS[modalidade] ?? { bg: 'bg-gray-100', text: 'text-gray-700', dot: 'bg-gray-400' };
 
 export function Aulas() {
-  const { user } = useAuth();
+  const { user, activeRole } = useAuth();
   const [aulas, setAulas] = useState<PedidoAula[]>([]);
   const [gruposAbertos, setGruposAbertos] = useState<PedidoAula[]>([]);
   const [estudios, setEstudios] = useState<any[]>([]);
@@ -63,7 +63,7 @@ export function Aulas() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const role = user?.role;
+        const role = activeRole;
         const aulasEndpoint = 
           role === 'ALUNO' ? api.getAlunoAulas() :
           role === 'ENCARREGADO' ? api.getEncarregadoAulas() :
@@ -84,9 +84,9 @@ export function Aulas() {
       }
     };
     fetchData();
-  }, []);
+  }, [user, activeRole]);
 
-  if (!user) return null;
+  if (!user || !activeRole) return null;
 
   // Lista de modalidades únicas nos dados
   const todasModalidades = Array.from(new Set(aulas.map(a => a.modalidade))).sort();
@@ -108,8 +108,8 @@ export function Aulas() {
 
   const getAulasFiltradas = (): PedidoAula[] => {
     let base = [...aulas];
-    if (user.role === 'ALUNO') base = base.filter(a => a.alunoId === user.id);
-    else if (user.role === 'PROFESSOR') {
+    if (activeRole === 'ALUNO') base = base.filter(a => String(a.alunoId) === String(user.id));
+    else if (activeRole === 'PROFESSOR') {
       base = base.filter(a => a.professorId === user.id);
     }
     
@@ -121,7 +121,7 @@ export function Aulas() {
   };
 
   const getAulasDisponiveisParaInscricao = (): PedidoAula[] => {
-    if (user.role !== 'ENCARREGADO') return [];
+    if (activeRole !== 'ENCARREGADO') return [];
     return gruposAbertos;
   };
 
@@ -145,7 +145,7 @@ export function Aulas() {
   // ── Juntar-se ─────────────────────────────────────────────────────────────
 
   const getAlunosDisponiveis = (aula: PedidoAula) => {
-    if (user.role !== 'ENCARREGADO') return [];
+    if (activeRole !== 'ENCARREGADO') return [];
     const ids = aula.participantes?.map(p => p.alunoId) ?? [aula.alunoId];
     return users.filter(u => (user.alunosIds ?? []).includes(u.id) && !ids.includes(u.id));
   };
@@ -153,19 +153,31 @@ export function Aulas() {
   const podeJuntar = (aula: PedidoAula): boolean => {
     if (aula.status !== 'PENDENTE') return false;
     if (getLivres(aula) <= 0) return false;
-    if (user.role !== 'ENCARREGADO') return false;
+    if (activeRole !== 'ENCARREGADO') return false;
     return getAlunosDisponiveis(aula).length > 0;
+  };
+
+  const handleCancelarParticipacao = async (aulaId: string) => {
+    if (!confirm('Tem a certeza que deseja cancelar a sua participação nesta aula?')) return;
+    try {
+      await api.cancelarParticipacaoAula(parseInt(aulaId));
+      toast.success('Participação cancelada com sucesso.');
+      const res = await api.getEncarregadoAulas();
+      if (res.success && res.data) setAulas(res.data);
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao cancelar participação');
+    }
   };
 
   const handleJuntar = async (aulaId: string) => {
     const aula = aulas.find(a => a.id === aulaId);
     if (!aula) return;
 
-    if (user.role === 'ENCARREGADO') {
+    if (activeRole === 'ENCARREGADO') {
       const aluno = users.find(u => u.id === joinAlunoSelecionado);
       if (!aluno) { toast.error('Selecione um aluno.'); return; }
       try {
-        await api.participarAula(parseInt(aulaId), parseInt(aluno.id));
+        await api.marcarAula(parseInt(aulaId), parseInt(aluno.id));
         const atual = aula.participantes ?? [{ alunoId: aula.alunoId, alunoNome: aula.alunoNome, encarregadoId: aula.encarregadoId }];
         setAulas(aulas.map(a => a.id === aulaId ? { ...a, participantes: [...atual, { alunoId: aluno.id, alunoNome: aluno.nome, encarregadoId: user.id }] } : a));
         toast.success('Pedido enviado! Aguarda aprovação.');
@@ -182,11 +194,11 @@ export function Aulas() {
   // ── Acções de gestão ─────────────────────────────────────────────────────
 
   const handleNovaAula = async (novaAula: PedidoAula) => {
-    if (user.role === 'ENCARREGADO') {
+    if (activeRole === 'ENCARREGADO') {
       try {
         const disponibilidadeId = prefillForm?.disponibilidadeId ? parseInt(prefillForm.disponibilidadeId) : undefined;
         const professorId = prefillForm?.professorId ? parseInt(prefillForm.professorId) : undefined;
-        await api.createEncarregadoAula({
+        await api.submeterPedidoAula({
           data: novaAula.data,
           horainicio: novaAula.horaInicio,
           duracaoaula: String(novaAula.duracao),
@@ -326,10 +338,10 @@ export function Aulas() {
     try {
       await api.remarcarAula(Number(aulaId), novaData, novoHoraInicio);
       setAulas(aulas.map(a => a.id === aulaId
-        ? { ...a, data: novaData, horaInicio: novoHoraInicio, horaFim: novoHoraFim, estudioId: novoEstudioId, estudioNome: novoEstudioNome, status: 'PENDENTE' as AulaStatus }
+        ? { ...a, data: novaData, horaInicio: novoHoraInicio, horaFim: novoHoraFim, estudioId: novoEstudioId, estudioNome: novoEstudioNome, status: 'PENDENTE' as AulaStatus, sugestaoestado: 'AGUARDA_PROFESSOR', novaData: novaData, novadata: novaData }
         : a
       ));
-      toast.success('Aula remarcada com sucesso!');
+      toast.success('Aula remarcada! A aguardar confirmação do professor.');
     } catch (error: any) {
       toast.error(error.message || 'Erro ao remarcar aula');
     }
@@ -411,6 +423,7 @@ export function Aulas() {
       CONFIRMADA: ['bg-teal-100 text-teal-800',   'Confirmada'],
       REJEITADA:  ['bg-red-100 text-red-800',      'Rejeitada'],
       REALIZADA:  ['bg-[#e2f0ed] text-[#0d6b5e]', 'Realizada'],
+      CANCELADA:  ['bg-gray-100 text-gray-600',   'Cancelada'],
     };
     const [cls, label] = map[status];
     return <span className={`px-3 py-1 rounded-full text-sm ${cls}`}>{label}</span>;
@@ -486,13 +499,13 @@ export function Aulas() {
                   <Clock className="w-4 h-4 text-[#0d6b5e] shrink-0" />
                   <span>{aula.horaInicio}–{aula.horaFim || '?'} ({aula.duracao} min)</span>
                 </div>
-                {user.role !== 'ALUNO' && aula.alunoNome && (
+                {activeRole !== 'ALUNO' && aula.alunoNome && (
                   <div className="flex items-center gap-2">
                     <UserPlus className="w-4 h-4 text-[#0d6b5e] shrink-0" />
                     <span className="truncate">Aluno: {aula.alunoNome}</span>
                   </div>
                 )}
-                {user.role === 'DIRECAO' && aula.encarregadoNome && (
+                {activeRole === 'DIRECAO' && aula.encarregadoNome && (
                   <div className="flex items-center gap-2 col-span-2">
                     <Users className="w-4 h-4 text-[#0d6b5e] shrink-0" />
                     <span className="truncate">EE: {aula.encarregadoNome}</span>
@@ -571,7 +584,7 @@ export function Aulas() {
             {/* Ações */}
             <div className="flex flex-col gap-2 shrink-0 items-end">
               {/* DIRECAO — Aprovar/Rejeitar em PENDENTE sem sugestão ativa */}
-              {user.role === 'DIRECAO' && aula.status === 'PENDENTE' && !aula.sugestaoestado && (
+              {activeRole === 'DIRECAO' && aula.status === 'PENDENTE' && !aula.sugestaoestado && (
                 <>
                   <button onClick={() => setAprovarModal({ aulaId: aula.id, salaId: aula.estudioId || '' })} className="flex items-center gap-1 bg-[#0d6b5e] text-white px-3 py-2 rounded-lg hover:bg-[#065147] transition-colors text-sm whitespace-nowrap">
                     <CheckCircle className="w-4 h-4" /> Aprovar
@@ -582,7 +595,7 @@ export function Aulas() {
                 </>
               )}
               {/* DIRECAO — Responder a AGUARDA_DIRECAO: com ou sem data proposta pelo Professor */}
-              {user.role === 'DIRECAO' && aula.sugestaoestado === 'AGUARDA_DIRECAO' && (
+              {activeRole === 'DIRECAO' && aula.sugestaoestado === 'AGUARDA_DIRECAO' && (
                 <div className="flex flex-col gap-1 items-end">
                   {(aula.novadata || aula.novaData) ? (
                     <>
@@ -616,7 +629,7 @@ export function Aulas() {
                 </div>
               )}
               {/* PROFESSOR — Confirmar realização (em CONFIRMADA) */}
-              {user.role === 'PROFESSOR' && aula.status === 'CONFIRMADA' && !aula.sugestaoestado && (
+              {activeRole === 'PROFESSOR' && aula.status === 'CONFIRMADA' && !aula.sugestaoestado && (
                 <div className="flex flex-col gap-2 items-end">
                   <button onClick={() => handleConfirmarRealizacao(aula.id)} className="flex items-center gap-1 bg-[#0d6b5e] text-white px-3 py-2 rounded-lg hover:bg-[#065147] transition-colors text-sm whitespace-nowrap">
                     <CheckCircle className="w-4 h-4" /> Confirmar Realização
@@ -632,7 +645,7 @@ export function Aulas() {
                 </div>
               )}
               {/* PROFESSOR — Responder à sugestão de remarcação da Direção */}
-              {user.role === 'PROFESSOR' && aula.sugestaoestado === 'AGUARDA_PROFESSOR' && (
+              {activeRole === 'PROFESSOR' && aula.sugestaoestado === 'AGUARDA_PROFESSOR' && (
                 <div className="flex flex-col gap-1 items-end">
                   <span className="text-xs text-orange-700 bg-orange-50 px-2 py-1 rounded-lg border border-orange-200 mb-1">
                     Nova data proposta: {aula.novadata || aula.novaData}
@@ -648,7 +661,7 @@ export function Aulas() {
                 </div>
               )}
               {/* ENCARREGADO — Responder à sugestão de remarcação aceite pelo Professor */}
-              {user.role === 'ENCARREGADO' && aula.sugestaoestado === 'AGUARDA_EE' && (
+              {activeRole === 'ENCARREGADO' && aula.sugestaoestado === 'AGUARDA_EE' && (
                 <div className="flex flex-col gap-1 items-end">
                   <span className="text-xs text-orange-700 bg-orange-50 px-2 py-1 rounded-lg border border-orange-200 mb-1">
                     Nova data proposta: {aula.novadata || aula.novaData}
@@ -671,16 +684,26 @@ export function Aulas() {
                 >
                   <UserPlus className="w-4 h-4" />
                   Juntar-se
-                  {user.role === 'ENCARREGADO' && (
+                  {activeRole === 'ENCARREGADO' && (
                     <ChevronDown className={`w-3 h-3 transition-transform ${isJoining ? 'rotate-180' : ''}`} />
                   )}
+                </button>
+              )}
+              {/* ENCARREGADO — Cancelar participação (RF17) */}
+              {activeRole === 'ENCARREGADO' && (aula.status === 'PENDENTE' || aula.status === 'CONFIRMADA') && !aula.sugestaoestado && (
+                <button
+                  onClick={() => handleCancelarParticipacao(aula.id)}
+                  className="flex items-center gap-1.5 bg-red-100 text-red-700 px-3 py-2 rounded-lg hover:bg-red-200 transition-colors text-sm whitespace-nowrap border border-red-200"
+                >
+                  <XCircle className="w-4 h-4" />
+                  Cancelar Participação
                 </button>
               )}
             </div>
           </div>
 
           {/* Painel inline para escolher aluno */}
-          {isJoining && user.role === 'ENCARREGADO' && (
+          {isJoining && activeRole === 'ENCARREGADO' && (
             <div className="mt-4 pt-4 border-t border-[#0d6b5e]/10">
               <p className="text-sm text-[#0a1a17] mb-3" style={{ fontWeight: 600 }}>
                 Selecione o aluno para juntar à aula:
@@ -724,7 +747,7 @@ export function Aulas() {
   const aulasDisponiveisParaInscricao = getAulasDisponiveisParaInscricao();
   const professores = users.filter(u => u.role === 'PROFESSOR');
 
-  const showSubTabs = user.role === 'ENCARREGADO';
+  const showSubTabs = activeRole === 'ENCARREGADO';
 
   // ── Filtro barra (Agenda) ─────────────────────────────────────────────────
 
@@ -769,7 +792,7 @@ export function Aulas() {
       </div>
 
       {/* Professor + Estúdio */}
-      {(user.role === 'DIRECAO' || user.role === 'ENCARREGADO') && (
+      {(activeRole === 'DIRECAO' || activeRole === 'ENCARREGADO') && (
         <div className="flex items-center gap-3 flex-wrap">
           <span className="text-sm text-white/50">Professor:</span>
           <select value={filtroProfessor} onChange={e => setFiltroProfessor(e.target.value)}
@@ -821,27 +844,19 @@ export function Aulas() {
             <div>
               <h1 className="text-3xl text-white mb-1">Gestão de Aulas</h1>
               <p className="text-white/50 text-sm">
-                {user.role === 'ALUNO'       && 'Consulte as suas aulas agendadas'}
-                {user.role === 'ENCARREGADO' && 'Gerencie as aulas dos seus educandos'}
-                {user.role === 'PROFESSOR'   && 'Suas aulas e confirmações'}
-                {user.role === 'DIRECAO'     && 'Gestão de todos os pedidos de aulas'}
+                {activeRole === 'ALUNO'       && 'Consulte as suas aulas agendadas'}
+                {activeRole === 'ENCARREGADO' && 'Gerencie as aulas dos seus educandos'}
+                {activeRole === 'PROFESSOR'   && 'Suas aulas e confirmações'}
+                {activeRole === 'DIRECAO'     && 'Gestão de todos os pedidos de aulas'}
               </p>
             </div>
-            {user.role === 'ENCARREGADO' && activeTab === 'marcar' && (
-              <button
-                onClick={() => { setShowNovoForm(!showNovoForm); if (showNovoForm) setPrefillForm(undefined); }}
-                className="flex items-center gap-2 bg-[#c9a84c] text-[#0a1a17] px-5 py-2.5 rounded-lg hover:bg-[#e8c97a] transition-colors"
-                style={{ fontWeight: 600 }}
-              >
-                <Plus className="w-5 h-5" /> Nova Aula
-              </button>
-            )}
+
           </div>
 
           {/* Abas principais */}
-          {user.role !== 'ALUNO' && (
+          {activeRole !== 'ALUNO' && (
             <div className="flex items-center gap-2">
-              {user.role === 'PROFESSOR' ? (
+              {activeRole === 'PROFESSOR' ? (
                 <>
                   {(['marcar', 'agenda', 'historico'] as const).map(tab => (
                     <button key={tab}
@@ -868,13 +883,13 @@ export function Aulas() {
           )}
 
           {/* Filtros da agenda */}
-          {activeTab === 'agenda' && user.role !== 'ALUNO' && <FilterBar />}
+          {activeTab === 'agenda' && activeRole !== 'ALUNO' && <FilterBar />}
         </div>
       </div>
 
       {/* ── Conteúdo ── */}
       <div className="max-w-7xl mx-auto px-4 py-6">
-        {user.role === 'ALUNO' ? (
+        {activeRole === 'ALUNO' ? (
           <AlunoAgendaView aulas={aulasFiltradas} nomeAluno={user.nome} />
         ) : (
           <>
@@ -893,7 +908,7 @@ export function Aulas() {
                 )}
 
                 {/* Pedidos pendentes de aprovação (só Direção, no tab Marcar) */}
-                {user.role === 'DIRECAO' && (() => {
+                {activeRole === 'DIRECAO' && (() => {
                   const pendentes = aulas
                     .filter(a => a.status === 'PENDENTE')
                     .sort((a, b) => new Date(a.data).getTime() - new Date(b.data).getTime());
@@ -923,10 +938,10 @@ export function Aulas() {
                   );
                 })()}
 
-                {user?.role !== 'DIRECAO' && (
+                {activeRole !== 'DIRECAO' && (
                   <DisponibilidadeProfessoresPanel
                     aulasExistentes={aulas}
-                    onMarcarSlot={user?.role === 'ENCARREGADO' ? (prefill) => handleMarcarSlot({ ...prefill, estudioId: prefill.estudioId || '' }) : undefined}
+                    onMarcarSlot={activeRole === 'ENCARREGADO' ? (prefill) => handleMarcarSlot({ ...prefill, estudioId: prefill.estudioId || '' }) : undefined}
                   />
                 )}
               </div>
@@ -1017,7 +1032,7 @@ export function Aulas() {
               </div>
             )}
 
-            {activeTab === 'historico' && user.role === 'PROFESSOR' && (
+            {activeTab === 'historico' && activeRole === 'PROFESSOR' && (
               <div className="space-y-6">
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-[#0d6b5e]/5">
                   <h2 className="text-xl font-semibold text-[#0d1b19] mb-2">Histórico de Aulas Lecionadas</h2>

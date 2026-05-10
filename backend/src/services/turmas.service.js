@@ -1,5 +1,6 @@
 import prisma from "../config/db.js";
 import { createNotificacao } from "./notificacoes.service.js";
+import { createAuditLog } from "./audit.service.js";
 
 const mapGrupo = (g) => ({
   id: String(g.idgrupo),
@@ -60,14 +61,14 @@ export const getTurmaById = async (id) => {
   return turma;
 };
 
-export const createTurma = async (data) => {
+export const createTurma = async (data, userId = null, userNome = '') => {
   const {
     nomegrupo, status, descricao, modalidade, nivel, faixaEtaria,
     professorId, estudioId, diasSemana, horaInicio, horaFim, duracao,
     lotacaoMaxima, dataInicio, dataFim, cor, requisitos
   } = data;
 
-  return prisma.grupo.create({
+  const grupo = await prisma.grupo.create({
     data: {
       nomegrupo,
       ...(status && { status }),
@@ -89,9 +90,13 @@ export const createTurma = async (data) => {
     },
     include: { alunogrupo: true }
   });
+
+  await createAuditLog(userId ? parseInt(userId) : null, userNome, 'CREATE', 'Grupo', grupo.idgrupo, `Grupo '${nomegrupo}' criado`);
+
+  return grupo;
 };
 
-export const updateTurma = async (id, data) => {
+export const updateTurma = async (id, data, userId = null, userNome = '') => {
   const existing = await prisma.grupo.findUnique({ where: { idgrupo: id } });
   if (!existing) throw new Error("Turma não encontrada");
 
@@ -120,11 +125,15 @@ export const updateTurma = async (id, data) => {
   if (cor !== undefined) updateData.cor = cor;
   if (requisitos !== undefined) updateData.requisitos = requisitos;
 
-  return prisma.grupo.update({
+  const grupo = await prisma.grupo.update({
     where: { idgrupo: id },
     data: updateData,
     include: { alunogrupo: true }
   });
+
+  await createAuditLog(userId ? parseInt(userId) : null, userNome, 'UPDATE', 'Grupo', id, 'Grupo atualizado');
+
+  return grupo;
 };
 
 export const deleteTurma = async (id) => {
@@ -178,7 +187,7 @@ async function getGrupoIntervenientes(turmaId) {
   return { professorUserId, encarregadoIds: [...new Set(encarregadoIds)], nomeGrupo: grupo.nomegrupo };
 }
 
-export const enrollAluno = async (turmaId, alunoId) => {
+export const enrollAluno = async (turmaId, alunoId, userId = null, userNome = '') => {
   const turma = await prisma.grupo.findUnique({
     where: { idgrupo: turmaId }
   });
@@ -236,10 +245,14 @@ export const enrollAluno = async (turmaId, alunoId) => {
     await createNotificacao(turma.professorId, `Um novo aluno (${alunoNome}) foi inscrito no grupo "${nomeGrupo}".`, 'GRUPO_INSCRICAO');
   }
 
+  await createAuditLog(userId ? parseInt(userId) : null, userNome, 'UPDATE', 'Grupo', turmaId, `Aluno inscrito no grupo`);
+
   return enrollment;
 };
 
 export const removeAluno = async (turmaId, userId) => {
+  const auditorUserId = userId;
+  const auditorUserNome = '';
   const alunoRec = await prisma.aluno.findFirst({
     where: { utilizadoriduser: userId }
   });
@@ -274,10 +287,14 @@ export const removeAluno = async (turmaId, userId) => {
     await createNotificacao(grupoInfo.professorId, `O aluno ${alunoNome} foi removido do grupo "${nomeGrupo}".`, 'GRUPO_REMOCAO');
   }
 
+  try {
+    await createAuditLog(parseInt(auditorUserId) || null, auditorUserNome, 'UPDATE', 'Grupo', turmaId, `Aluno removido do grupo`);
+  } catch (_) {}
+
   return { message: "Aluno removido da turma com sucesso" };
 };
 
-export const closeTurma = async (id) => {
+export const closeTurma = async (id, userId = null, userNome = '') => {
   const turma = await prisma.grupo.findUnique({ where: { idgrupo: id } });
   if (!turma) throw new Error("Turma não encontrada");
   const newStatus = turma.status === 'ABERTA' ? 'FECHADA' : 'ABERTA';
@@ -297,10 +314,12 @@ export const closeTurma = async (id) => {
     }
   }
 
+  await createAuditLog(userId ? parseInt(userId) : null, userNome, 'UPDATE', 'Grupo', id, `Grupo ${newStatus === 'FECHADA' ? 'fechado' : 'reaberto'}`);
+
   return updated;
 };
 
-export const archiveTurma = async (id) => {
+export const archiveTurma = async (id, userId = null, userNome = '') => {
   const turma = await prisma.grupo.findUnique({ where: { idgrupo: id } });
   if (!turma) throw new Error("Turma não encontrada");
   const updated = await prisma.grupo.update({ where: { idgrupo: id }, data: { status: 'ARQUIVADA' } });
@@ -312,6 +331,8 @@ export const archiveTurma = async (id) => {
   for (const encId of encarregadoIds) {
     await createNotificacao(encId, `O grupo "${nomeGrupo}" foi arquivado. O seu educando já não terá aulas neste grupo.`, 'GRUPO_ARQUIVADO');
   }
+
+  await createAuditLog(userId ? parseInt(userId) : null, userNome, 'UPDATE', 'Grupo', id, 'Grupo arquivado');
 
   return updated;
 };

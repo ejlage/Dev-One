@@ -2,7 +2,7 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-export const getDisponibilidadesMensais = async (professorId) => {
+export const verificarDisponibilidadeProfessor = async (professorId) => {
   return await prisma.$queryRaw`
     SELECT dm.*, mp.modalidadeidmodalidade, m.nome as modalidade_nome
     FROM disponibilidade_mensal dm

@@ -6,9 +6,24 @@ export default async function alunoRoutes(fastify) {
     return verifyToken(req, reply);
   });
 
-  fastify.get("/aulas", async (req, reply) => {
+  fastify.get("/aulas", {
+    schema: {
+      tags: ["Aluno"],
+      description: "Listar aulas do aluno autenticado",
+      security: [{ bearerAuth: [] }],
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            data: { type: "array" }
+          }
+        }
+      }
+    }
+  }, async (req, reply) => {
     try {
-      if (req.user.role !== "ALUNO") {
+      if (!req.user.normalizedRoles.includes("ALUNO")) {
         return reply.status(403).send({ success: false, error: "Acesso negado" });
       }
       const aulas = await alunoService.getAlunoAulas(req.user.id);
@@ -18,9 +33,39 @@ export default async function alunoRoutes(fastify) {
     }
   });
 
-  fastify.get("/disponibilidades", async (req, reply) => {
+  fastify.get("/disponibilidades", {
+    schema: {
+      tags: ["Aluno"],
+      description: "Listar todas as disponibilidades disponíveis para alunos",
+      security: [{ bearerAuth: [] }],
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            data: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  id: { type: "string" },
+                  professorId: { type: "string" },
+                  professorNome: { type: "string" },
+                  data: { type: "string" },
+                  horaInicio: { type: "string" },
+                  horaFim: { type: "string" },
+                  modalidadeId: { type: "string" },
+                  modalidade: { type: "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }, async (req, reply) => {
     try {
-      if (req.user.role !== "ALUNO") {
+      if (!req.user.normalizedRoles.includes("ALUNO")) {
         return reply.status(403).send({ success: false, error: "Acesso negado" });
       }
       const disponibilidades = await alunoService.getAllDisponibilidadesMensais();

@@ -14,14 +14,16 @@ export function AlunoAgendaView({ aulas, nomeAluno }: AlunoAgendaViewProps) {
   const aulasConfirmadas = aulas.filter(a => a.status === 'CONFIRMADA');
   const aulasRejeitadas  = aulas.filter(a => a.status === 'REJEITADA');
 
-  // Próximas aulas (confirmadas e futuras)
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
-  
+
   const proximasAulas = aulasConfirmadas
     .filter(a => new Date(a.data) >= hoje)
-    .sort((a, b) => new Date(a.data).getTime() - new Date(b.data).getTime())
-    .slice(0, 3);
+    .sort((a, b) => new Date(a.data).getTime() - new Date(b.data).getTime());
+
+  const aulasPassadas = aulasConfirmadas
+    .filter(a => new Date(a.data) < hoje)
+    .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
 
   const getStatusBadge = (status: PedidoAula['status']) => {
     const styles: Record<string, string> = {
@@ -168,34 +170,137 @@ export function AlunoAgendaView({ aulas, nomeAluno }: AlunoAgendaViewProps) {
         </div>
       )}
 
+      {/* Aulas Pendentes */}
+      {aulasPendentes.length > 0 && (
+        <div className="bg-white p-6 rounded-2xl border border-amber-200">
+          <h3 className="text-xl text-[#0a1a17] mb-4" style={{ fontWeight: 600 }}>
+            ⏳ A Aguardar Aprovação
+          </h3>
+          <div className="space-y-3">
+            {aulasPendentes
+              .sort((a, b) => new Date(a.data).getTime() - new Date(b.data).getTime())
+              .map(aula => {
+                const dataAula = new Date(aula.data);
+                return (
+                  <div key={aula.id} className="p-4 bg-amber-50 rounded-xl border border-amber-200">
+                    <div className="flex items-start justify-between mb-3">
+                      <h4 className="text-[#0a1a17]" style={{ fontWeight: 600 }}>
+                        {format(dataAula, "EEEE, d 'de' MMMM yyyy", { locale: ptBR })}
+                      </h4>
+                      {getStatusBadge(aula.status)}
+                    </div>
+                    <div className="grid md:grid-cols-3 gap-3 text-sm">
+                      <div className="flex items-center gap-2 text-[#4d7068]">
+                        <Clock className="w-4 h-4 text-amber-500" />
+                        <span>{aula.horaInicio} - {aula.horaFim}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-[#4d7068]">
+                        <User className="w-4 h-4 text-amber-500" />
+                        <span>Prof. {aula.professorNome}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-[#4d7068]">
+                        <MapPin className="w-4 h-4 text-amber-500" />
+                        <span>{aula.estudioNome}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
+
+      {/* Aulas Passadas */}
+      {aulasPassadas.length > 0 && (
+        <div className="bg-white p-6 rounded-2xl border border-[#0d6b5e]/10">
+          <h3 className="text-xl text-[#0a1a17] mb-4" style={{ fontWeight: 600 }}>
+            ✅ Aulas Realizadas
+          </h3>
+          <div className="space-y-3">
+            {aulasPassadas.map(aula => {
+              const dataAula = new Date(aula.data);
+              return (
+                <div key={aula.id} className="p-4 bg-[#f4f9f8] rounded-xl border border-[#0d6b5e]/10">
+                  <div className="flex items-start justify-between mb-3">
+                    <h4 className="text-[#0a1a17]" style={{ fontWeight: 600 }}>
+                      {format(dataAula, "EEEE, d 'de' MMMM yyyy", { locale: ptBR })}
+                    </h4>
+                    {getStatusBadge(aula.status)}
+                  </div>
+                  <div className="grid md:grid-cols-3 gap-3 text-sm">
+                    <div className="flex items-center gap-2 text-[#4d7068]">
+                      <Clock className="w-4 h-4 text-[#0d6b5e]" />
+                      <span>{aula.horaInicio} - {aula.horaFim}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-[#4d7068]">
+                      <User className="w-4 h-4 text-[#0d6b5e]" />
+                      <span>Prof. {aula.professorNome}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-[#4d7068]">
+                      <MapPin className="w-4 h-4 text-[#0d6b5e]" />
+                      <span>{aula.estudioNome}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Aulas Rejeitadas */}
+      {aulasRejeitadas.length > 0 && (
+        <div className="bg-white p-6 rounded-2xl border border-red-100">
+          <h3 className="text-xl text-[#0a1a17] mb-4" style={{ fontWeight: 600 }}>
+            ❌ Aulas Rejeitadas
+          </h3>
+          <div className="space-y-3">
+            {aulasRejeitadas
+              .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())
+              .map(aula => {
+                const dataAula = new Date(aula.data);
+                return (
+                  <div key={aula.id} className="p-4 bg-red-50 rounded-xl border border-red-100">
+                    <div className="flex items-start justify-between mb-3">
+                      <h4 className="text-[#0a1a17]" style={{ fontWeight: 600 }}>
+                        {format(dataAula, "EEEE, d 'de' MMMM yyyy", { locale: ptBR })}
+                      </h4>
+                      {getStatusBadge(aula.status)}
+                    </div>
+                    <div className="grid md:grid-cols-3 gap-3 text-sm">
+                      <div className="flex items-center gap-2 text-[#4d7068]">
+                        <Clock className="w-4 h-4 text-red-400" />
+                        <span>{aula.horaInicio} - {aula.horaFim}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-[#4d7068]">
+                        <User className="w-4 h-4 text-red-400" />
+                        <span>Prof. {aula.professorNome}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-[#4d7068]">
+                        <MapPin className="w-4 h-4 text-red-400" />
+                        <span>{aula.estudioNome}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
+
       {/* Informação sobre permissões */}
       <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
         <div className="flex items-start gap-3">
           <Info className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
           <div className="text-sm text-blue-900">
-            <p style={{ fontWeight: 600 }} className="mb-1">
-              Modo de Visualização
-            </p>
+            <p style={{ fontWeight: 600 }} className="mb-1">Modo de Visualização</p>
             <p>
-              Como aluno, tem acesso apenas de leitura à sua agenda. 
+              Como aluno, tem acesso apenas de leitura à sua agenda.
               Para solicitar novas aulas ou fazer alterações, entre em contacto com o seu encarregado.
             </p>
           </div>
         </div>
       </div>
-
-      {/* Nenhuma próxima aula mas há pendentes */}
-      {!semAulas && proximasAulas.length === 0 && aulasPendentes.length > 0 && (
-        <div className="bg-amber-50 rounded-xl p-4 border border-amber-200">
-          <div className="flex items-start gap-3">
-            <Info className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
-            <p className="text-sm text-amber-900">
-              Tens {aulasPendentes.length} aula{aulasPendentes.length > 1 ? 's' : ''} a aguardar aprovação da direção.
-              Receberás uma notificação quando for confirmada.
-            </p>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

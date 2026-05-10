@@ -14,9 +14,10 @@ import { Marketplace } from './pages/Marketplace';
 import { Stock } from './pages/Stock';
 import { Utilizadores } from './pages/Utilizadores';
 import { GestaoEventos } from './pages/GestaoEventos';
+import { Extrato } from './pages/Extrato';
+import { Auditoria } from './pages/Auditoria';
 import { Experimentar } from './pages/Experimentar';
 import { Contactos } from './pages/Contactos';
-import { Inscricoes } from './pages/Inscricoes';
 
 const NotFound = () => <Navigate to="/" replace />;
 
@@ -46,10 +47,10 @@ export const router = createBrowserRouter([
         path: '/login',
         Component: Login,
       },
-      {
-        path: '/reset-password',
-        Component: ResetPassword,
-      },
+        {
+          path: '/reset-password',
+          Component: ResetPassword,
+        },
       {
         path: '/dashboard',
         Component: DashboardLayout,
@@ -62,7 +63,8 @@ export const router = createBrowserRouter([
           { path: 'stock', Component: Stock },
           { path: 'utilizadores', Component: Utilizadores },
           { path: 'eventos', Component: GestaoEventos },
-          { path: 'inscricoes', Component: Inscricoes },
+          { path: 'extrato', Component: Extrato },
+          { path: 'auditoria', Component: Auditoria },
         ],
       },
       {

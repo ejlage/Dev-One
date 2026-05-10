@@ -1,6 +1,6 @@
 // Tipos e interfaces do sistema
 
-export type UserRole = 'ALUNO' | 'ENCARREGADO' | 'PROFESSOR' | 'DIRECAO';
+export type UserRole = 'ALUNO' | 'ENCARREGADO' | 'PROFESSOR' | 'DIRECAO' | 'UTILIZADOR';
 
 export interface Notificacao {
   idnotificacao: number;
@@ -11,7 +11,7 @@ export interface Notificacao {
   dataleitura: string | null;
 }
 
-export type AulaStatus = 'PENDENTE' | 'CONFIRMADA' | 'REJEITADA' | 'REALIZADA';
+export type AulaStatus = 'PENDENTE' | 'CONFIRMADA' | 'REJEITADA' | 'REALIZADA' | 'CANCELADA';
 
 export type FigurinoStatus = 'DISPONIVEL' | 'ALUGADO' | 'VENDIDO';
 
@@ -26,10 +26,11 @@ export interface User {
   nome: string;
   email: string;
   telemovel?: string;
-  role: UserRole;
-  estado?: boolean; // true = ativo, false = inativo
-  encarregadoId?: string; // Se for ALUNO, referência ao encarregado
-  alunosIds?: string[]; // Se for ENCARREGADO, lista de alunos
+  role: UserRole | UserRole[];
+  availableRoles?: UserRole[];
+  estado?: boolean;
+  encarregadoId?: string;
+  alunosIds?: string[];
 }
 
 export interface PedidoAula {
@@ -71,12 +72,16 @@ export interface Figurino {
   imagem: string;
   status: FigurinoStatus;
   tipo: 'ESCOLA' | 'PARTICULAR';
-  proprietarioId?: string; // Se for particular
+  proprietarioId?: string;
   proprietarioNome?: string;
-  alugadoPor?: string; // ID do usuário que alugou
-  alugadoEm?: string; // Data do aluguel
-  alugadoAte?: string; // Data prevista de devolução
-  localArmazenamento?: string; // Local físico onde está guardado (prateleira, armário, etc)
+  alugadoPor?: string;
+  alugadoEm?: string;
+  alugadoAte?: string;
+  localArmazenamento?: string;
+  cor?: string;
+  quantidadeDisponivel?: number;
+  quantidadeTotal?: number;
+  tipofigurino?: string;
 }
 
 export interface AnuncioMarketplace {
@@ -92,10 +97,11 @@ export interface AnuncioMarketplace {
   status: AnuncioStatus;
   tipoTransacao: TipoTransacao;
   criadoEm: string;
-  espetaculoId?: string; // Se é para um espetáculo específico
+  espetaculoId?: string;
   espetaculoNome?: string;
-  stockAssociadoId?: string; // ID do figurino do stock (se é aluguer da escola)
+  stockAssociadoId?: string;
   motivoRejeicao?: string | null;
+  quantidade?: number;
 }
 
 export interface ReservaFigurino {
@@ -177,5 +183,36 @@ export interface Turma {
   cor: string;                 // cor do banner do card (hex)
   requisitos?: string;         // notas / requisitos visíveis ao encarregado
   alunosInscritos: AlunoInscrito[];
-  criadaEm: string;
+}
+
+// API Response Types
+export interface LoginResponse {
+  success: boolean;
+  token?: string;
+  user?: {
+    id: number;
+    nome: string;
+    email: string;
+    telemovel?: string;
+    role: string | string[];
+    availableRoles?: string[];
+    alunosIds?: number[];
+  };
+  message?: string;
+}
+
+export interface ApiError {
+  success: boolean;
+  message: string;
+}
+
+export interface AuditLog {
+  id: number;
+  utilizadorId: number;
+  utilizadorNome: string;
+  acao: string;
+  entidade: string;
+  entidadeId: number | null;
+  detalhes: string | null;
+  data: string;
 }

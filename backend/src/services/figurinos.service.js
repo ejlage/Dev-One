@@ -1,4 +1,5 @@
 import prisma from "../config/db.js";
+import { createAuditLog } from "./audit.service.js";
 
 export const getAllFigurinos = async () => {
   const figurinos = await prisma.figurino.findMany({
@@ -11,7 +12,7 @@ export const getAllFigurinos = async () => {
   return figurinos.map(mapFigurino);
 };
 
-export const getFigurinoById = async (id) => {
+export const consultarFigurino = async (id) => {
   const figurino = await prisma.figurino.findUnique({
     where: { idfigurino: id },
     include: {
@@ -152,7 +153,7 @@ export const updateFigurinoStatus = async (id, novoEstadoId) => {
 const STATUS_MAP = { DISPONIVEL: 19, ALUGADO: 21, VENDIDO: 17 };
 const ESTADO_TO_STATUS = { 16: 'DISPONIVEL', 17: 'DISPONIVEL', 18: 'DISPONIVEL', 19: 'DISPONIVEL', 20: 'ALUGADO', 21: 'ALUGADO' };
 
-export const createFigurinoStock = async (data, callerUserId, callerRole) => {
+export const createFigurinoStock = async (data, callerUserId, callerRole, auditUserId = null, auditUserNome = '') => {
   const {
     nome, descricao, fotografia, tipofigurinoid,
     tamanhoid, generoid, corid, estadousoid, localizacao,
@@ -202,10 +203,12 @@ export const createFigurinoStock = async (data, callerUserId, callerRole) => {
     include: { estadouso: true, tamanho: true, cor: true, genero: true, modelofigurino: true, itemfigurino: true }
   });
 
+  await createAuditLog(auditUserId ? parseInt(auditUserId) : null, auditUserNome, 'CREATE', 'Figurino', figurino.idfigurino, 'Figurino adicionado ao stock');
+
   return mapFigurino(figurino);
 };
 
-export const updateFigurinoStatusSimple = async (id, statusStr) => {
+export const updateFigurinoStatusSimple = async (id, statusStr, auditUserId = null, auditUserNome = '') => {
   const estadoId = STATUS_MAP[statusStr];
   if (!estadoId) throw new Error('Status inválido');
   const figurino = await prisma.figurino.update({
@@ -213,6 +216,9 @@ export const updateFigurinoStatusSimple = async (id, statusStr) => {
     data: { estadousoidestado: estadoId },
     include: { estadouso: true, tamanho: true, cor: true, genero: true, modelofigurino: true, itemfigurino: true }
   });
+
+  await createAuditLog(auditUserId ? parseInt(auditUserId) : null, auditUserNome, 'UPDATE', 'Figurino', parseInt(id), `Estado alterado para ${statusStr}`);
+
   return mapFigurino(figurino);
 };
 
@@ -246,3 +252,95 @@ const mapFigurino = (f) => ({
   generoid: f.generoidgenero,
   corid: f.coridcor,
 });
+
+export const getStock = async () => {
+  const figurinos = await prisma.figurino.findMany({
+    include: {
+      estadouso: true,
+      tamanho: true,
+      cor: true,
+      genero: true,
+      modelofigurino: { include: { tipofigurino: true } },
+      itemfigurino: true,
+    }
+  });
+
+  return figurinos.map(f => ({
+    id: f.idfigurino,
+    modelo: f.modelofigurino?.nomemodelo || '',
+    descricao: f.modelofigurino?.descricao || '',
+    fotografia: f.modelofigurino?.fotografia || '',
+    genero: f.genero?.nomegenero || '',
+    tamanho: f.tamanho?.nometamanho || '',
+    cor: f.cor?.nomecor || '',
+    estado: f.estadouso?.estadouso || '',
+    quantidadeTotal: f.quantidadetotal,
+    quantidadeDisponivel: f.quantidadedisponivel,
+    localizacao: f.itemfigurino?.localizacao || '',
+  }));
+};
+
+export const getFigurinoHistory = async (figurinoId) => {
+  const transactions = await prisma.transacaofigurino.findMany({
+    where: {
+      anuncio: {
+        figurinoidfigurino: parseInt(figurinoId)
+      }
+    },
+    include: {
+      estado: true,
+      itemfigurino: true,
+      encarregadoeducacao: { include: { utilizador: true } },
+      professor: { include: { utilizador: true } },
+      direcao: { include: { utilizador: true } }
+    },
+    orderBy: { datatransacao: 'desc' }
+  });
+
+  return transactions.map(t => ({
+    id: t.idtransacao,
+    data: t.datatransacao ? new Date(t.datatransacao).toISOString() : '',
+    quantidade: t.quantidade,
+    estado: t.estado?.tipoestado || '',
+    motivoRejeicao: t.motivorejeicao || '',
+    item: t.itemfigurino?.localizacao || '',
+    requester: t.encarregadoeducacao?.utilizador?.nome 
+      || t.professor?.utilizador?.nome 
+      || t.direcao?.utilizador?.nome 
+      || 'Desconhecido'
+  }));
+};
+
+export const getFigurinosStockBaixo = async () => {
+  const figurinos = await prisma.figurino.findMany({
+    where: {
+      stockminimo: { not: null }
+    }
+  });
+
+  return figurinos.filter(f => f.quantidadedisponivel <= f.stockminimo).map(f => ({
+    id: f.idfigurino,
+    modelo: f.quantidadetotal,
+    disponivel: f.quantidadedisponivel,
+    stockMinimo: f.stockminimo
+  }));
+};
+
+export const getRelatorioFigurinos = async () => {
+  const figurinos = await prisma.figurino.findMany({
+    include: {
+      modelofigurino: true,
+      tamanho: true
+    }
+  });
+
+  return figurinos.map(f => ({
+    id: f.idfigurino,
+    modelo: f.modelofigurino?.nomemodelo || '',
+    tamanho: f.tamanho?.nometamanho || '',
+    total: f.quantidadetotal,
+    disponivel: f.quantidadedisponivel,
+    stockMinimo: f.stockminimo || 5,
+    estado: f.quantidadedisponivel <= (f.stockminimo || 5) ? 'BAIXO' : 'NORMAL'
+  }));
+};

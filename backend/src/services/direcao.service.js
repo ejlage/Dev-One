@@ -3,7 +3,7 @@ import { createNotificacao } from "./notificacoes.service.js";
 
 const prisma = new PrismaClient();
 
-export const getAllAulas = async () => {
+export const consultarAula = async () => {
   const aulas = await prisma.$queryRaw`
     SELECT
       pa.idpedidoaula,
@@ -21,10 +21,10 @@ export const getAllAulas = async () => {
       s.idsala as sala_id,
       mp.modalidadeidmodalidade,
       m.nome as modalidade_nome,
-      dm.professorutilizadoriduser as professor_id,
+      COALESCE(dm.professorutilizadoriduser, pa.professorutilizadoriduser) as professor_id,
       u.nome as professor_nome,
       alu.nome as aluno_nome,
-      al.utilizadoriduser as aluno_utilizador_id,
+      pa.alunoutilizadoriduser as aluno_utilizador_id,
       enc.nome as encarregado_nome,
       pa.encarregadoeducacaoutilizadoriduser as encarregado_id
     FROM pedidodeaula pa
@@ -33,10 +33,8 @@ export const getAllAulas = async () => {
     LEFT JOIN disponibilidade_mensal dm ON pa.disponibilidade_mensal_id = dm.iddisponibilidade_mensal
     LEFT JOIN modalidadeprofessor mp ON dm.modalidadesprofessoridmodalidadeprofessor = mp.idmodalidadeprofessor
     LEFT JOIN modalidade m ON mp.modalidadeidmodalidade = m.idmodalidade
-    LEFT JOIN utilizador u ON dm.professorutilizadoriduser = u.iduser
-    LEFT JOIN alunoaula aa ON pa.idpedidoaula = aa.aulaidaula
-    LEFT JOIN aluno al ON aa.alunoidaluno = al.idaluno
-    LEFT JOIN utilizador alu ON al.utilizadoriduser = alu.iduser
+    LEFT JOIN utilizador u ON COALESCE(dm.professorutilizadoriduser, pa.professorutilizadoriduser) = u.iduser
+    LEFT JOIN utilizador alu ON pa.alunoutilizadoriduser = alu.iduser
     LEFT JOIN utilizador enc ON pa.encarregadoeducacaoutilizadoriduser = enc.iduser
     ORDER BY pa.data DESC, pa.horainicio DESC
   `;
@@ -190,94 +188,43 @@ export const getPendingAulas = async () => {
   });
 };
 
-export const approveAula = async (id, salaId) => {
-  const estadoConfirmada = await prisma.$queryRaw`
-    SELECT idestado FROM estado WHERE LOWER(tipoestado) = 'confirmado'
-  `;
-
-  if (!estadoConfirmada || estadoConfirmada.length === 0) {
-    throw new Error('Estado CONFIRMADA não encontrado');
-  }
-
-  const pedido = await prisma.pedidodeaula.findUnique({
-    where: { idpedidoaula: parseInt(id) },
-    include: {
-      estado: true,
-      encarregadoeducacao: { include: { utilizador: true } },
-      disponibilidade_mensal: {
-        include: {
-          professor: { include: { utilizador: true } }
-        }
-      }
-    }
-  });
-
-  if (!pedido) {
-    throw new Error('Pedido não encontrado');
-  }
-
-  if (pedido.estado && pedido.estado.tipoestado.toLowerCase() === 'confirmado') {
-    throw new Error('O pedido já foi aprovado anteriormente');
-  }
-
-  if (pedido.estado && pedido.estado.tipoestado.toLowerCase() === 'rejeitado') {
-    throw new Error('Não é possível aprovar um pedido que foi rejeitado');
-  }
-
-  if (salaId) {
-    await prisma.$queryRaw`
-      UPDATE pedidodeaula SET salaidsala = ${parseInt(salaId)}
-      WHERE idpedidoaula = ${parseInt(id)}
+export const avaliarPedido = async (id, decisao, salaId, motivo) => {
+  if (decisao === 'aprovar') {
+    const estadoConfirmada = await prisma.$queryRaw`
+      SELECT idestado FROM estado WHERE LOWER(tipoestado) = 'confirmado'
     `;
+    if (!estadoConfirmada || estadoConfirmada.length === 0) {
+      throw new Error('Estado CONFIRMADA não encontrado');
+    }
+    const pedido = await prisma.pedidodeaula.findUnique({
+      where: { idpedidoaula: parseInt(id) },
+      include: { estado: true, encarregadoeducacao: { include: { utilizador: true } }, disponibilidade_mensal: { include: { professor: { include: { utilizador: true } } } } }
+    });
+    if (!pedido) throw new Error('Pedido não encontrado');
+    if (pedido.estado && pedido.estado.tipoestado.toLowerCase() === 'confirmado') throw new Error('O pedido já foi aprovado anteriormente');
+    if (pedido.estado && pedido.estado.tipoestado.toLowerCase() === 'rejeitado') throw new Error('Não é possível aprovar um pedido que foi rejeitado');
+    if (salaId) {
+      await prisma.$queryRaw`UPDATE pedidodeaula SET salaidsala = ${parseInt(salaId)} WHERE idpedidoaula = ${parseInt(id)}`;
+    }
+    const result = await prisma.$queryRaw`UPDATE pedidodeaula SET estadoidestado = ${estadoConfirmada[0].idestado} WHERE idpedidoaula = ${parseInt(id)} RETURNING idpedidoaula, data, horainicio, estadoidestado`;
+    if (pedido?.encarregadoeducacao) {
+      await createNotificacao(pedido.encarregadoeducacao.utilizadoriduser, `✅ A sua aula foi aprovada! Data: ${pedido.data} às ${pedido.horainicio}`, 'AULA_APROVADA');
+    }
+    if (pedido?.disponibilidade_mensal?.professor) {
+      await createNotificacao(pedido.disponibilidade_mensal.professor.utilizadoriduser, `📅 Nova aula confirmada para ${pedido.data} às ${pedido.horainicio}`, 'AULA_CONFIRMADA');
+    }
+    return result;
   }
-
-  const result = await prisma.$queryRaw`
-    UPDATE pedidodeaula
-    SET estadoidestado = ${estadoConfirmada[0].idestado}
-    WHERE idpedidoaula = ${parseInt(id)}
-    RETURNING idpedidoaula, data, horainicio, estadoidestado
-  `;
-
-  if (pedido?.encarregadoeducacao) {
-    const mensagem = `✅ A sua aula foi aprovada! Data: ${pedido.data} às ${pedido.horainicio}`;
-    await createNotificacao(pedido.encarregadoeducacao.utilizadoriduser, mensagem, 'AULA_APROVADA');
+  if (decisao === 'rejeitar') {
+    const estadoRejeitada = await prisma.$queryRaw`SELECT idestado FROM estado WHERE LOWER(tipoestado) = 'rejeitado'`;
+    if (!estadoRejeitada || estadoRejeitada.length === 0) throw new Error('Estado REJEITADA não encontrado');
+    const pedido = await prisma.pedidodeaula.findUnique({ where: { idpedidoaula: parseInt(id) }, include: { encarregadoeducacao: true } });
+    const result = await prisma.$queryRaw`UPDATE pedidodeaula SET estadoidestado = ${estadoRejeitada[0].idestado} WHERE idpedidoaula = ${parseInt(id)} RETURNING idpedidoaula, data, horainicio, estadoidestado`;
+    if (pedido?.encarregadoeducacao) {
+      await createNotificacao(pedido.encarregadoeducacao.utilizadoriduser, `❌ A sua aula foi rejeitada. Motivo: ${motivo}. Se pretender reagendar, consulte as disponibilidades dos professores e submeta um novo pedido.`, 'AULA_REJEITADA');
+    }
+    return result;
   }
-
-  if (pedido?.disponibilidade_mensal?.professor) {
-    const mensagem = `📅 Nova aula confirmada para ${pedido.data} às ${pedido.horainicio}`;
-    await createNotificacao(pedido.disponibilidade_mensal.professor.utilizadoriduser, mensagem, 'AULA_CONFIRMADA');
-  }
-
-  return result;
-};
-
-export const rejectAula = async (id, motivo) => {
-  const estadoRejeitada = await prisma.$queryRaw`
-    SELECT idestado FROM estado WHERE LOWER(tipoestado) = 'rejeitado'
-  `;
-
-  if (!estadoRejeitada || estadoRejeitada.length === 0) {
-    throw new Error('Estado REJEITADA não encontrado');
-  }
-
-  const pedido = await prisma.pedidodeaula.findUnique({
-    where: { idpedidoaula: parseInt(id) },
-    include: { encarregadoeducacao: true }
-  });
-
-  const result = await prisma.$queryRaw`
-    UPDATE pedidodeaula
-    SET estadoidestado = ${estadoRejeitada[0].idestado}
-    WHERE idpedidoaula = ${parseInt(id)}
-    RETURNING idpedidoaula, data, horainicio, estadoidestado
-  `;
-
-  if (pedido?.encarregadoeducacao) {
-    const mensagem = `❌ A sua aula foi rejeitada. Motivo: ${motivo}. Se pretender reagendar, consulte as disponibilidades dos professores e submeta um novo pedido.`;
-    await createNotificacao(pedido.encarregadoeducacao.utilizadoriduser, mensagem, 'AULA_REJEITADA');
-  }
-
-  return result;
 };
 
 export const confirmarAulaRealizada = async (id) => {
@@ -311,4 +258,57 @@ export const confirmarAulaRealizada = async (id) => {
   }
 
   return result;
+};
+
+export const getRelatorioAulasMensal = async (ano, mes) => {
+  const inicio = new Date(parseInt(ano), parseInt(mes) - 1, 1);
+  const fim = new Date(parseInt(ano), parseInt(mes), 0, 23, 59, 59);
+
+  const pedidos = await prisma.$queryRaw`
+    SELECT 
+      DATE(pa.data) as data_aula,
+      COUNT(*) as total_aulas,
+      SUM(pa.maxparticipantes) as total_participantes
+    FROM pedidodeaula pa
+    JOIN estado e ON pa.estadoidestado = e.idestado
+    WHERE pa.data >= ${inicio} AND pa.data <= ${fim}
+      AND LOWER(e.tipoestado) IN ('confirmado', 'concluído', 'aprovado')
+    GROUP BY DATE(pa.data)
+    ORDER BY data_aula ASC
+  `;
+
+  const totalGeral = await prisma.$queryRaw`
+    SELECT COUNT(*) as total FROM pedidodeaula pa
+    JOIN estado e ON pa.estadoidestado = e.idestado
+    WHERE pa.data >= ${inicio} AND pa.data <= ${fim}
+      AND LOWER(e.tipoestado) IN ('confirmado', 'concluído', 'aprovado')
+  `;
+
+  return {
+    periodo: { ano: parseInt(ano), mes: parseInt(mes) },
+    totalAulas: totalGeral[0]?.total || 0,
+    detalhe: pedidos.map(p => ({
+      data: p.data_aula ? new Date(p.data_aula).toISOString().split('T')[0] : '',
+      total: parseInt(p.total_aulas),
+      participantes: parseInt(p.total_participantes)
+    }))
+  };
+};
+
+export const getRelatorioPresencas = async (dataInicio, dataFim) => {
+  return prisma.$queryRaw`
+    SELECT 
+      a.idaula,
+      pa.data as data_aula,
+      u.nome as aluno_nome,
+      p.presente,
+      p.datahora
+    FROM presenca p
+    JOIN aluno al ON p.alunoidaluno = al.idaluno
+    JOIN utilizador u ON al.utilizadoriduser = u.iduser
+    JOIN aula a ON p.aulaidaula = a.idaula
+    JOIN pedidodeaula pa ON a.pedidodeaulaidpedidoaula = pa.idpedidoaula
+    WHERE p.datahora >= ${new Date(dataInicio)} AND p.datahora <= ${new Date(dataFim)}
+    ORDER BY pa.data ASC, u.nome ASC
+  `;
 };

@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { createAuditLog } from "./audit.service.js";
 
 const prisma = new PrismaClient();
 
@@ -152,7 +153,7 @@ export const getGruposAbertos = async () => {
   });
 };
 
-export const createPedidoAula = async (data, incarregadoUserId) => {
+export const submeterPedidoAula = async (data, incarregadoUserId) => {
   const {
     data: dataAula,
     horainicio,
@@ -260,6 +261,11 @@ export const createPedidoAula = async (data, incarregadoUserId) => {
     RETURNING idpedidoaula, data, horainicio, duracaoaula, privacidade
   `, dataStr, horaStr, duracaoStr + ' minutes', privacidade || false, finalSlotId, estadoPendente[0].idestado, parseInt(salaidsala), incarregadoUserId, aluId, finalProfId);
 
+  const pedidoId = result?.[0]?.idpedidoaula;
+  if (pedidoId) {
+    await createAuditLog(parseInt(incarregadoUserId), '', 'CREATE', 'PedidoAula', pedidoId, `Pedido criado para ${dataStr}`);
+  }
+
   if (finalSlotId && duracaoaula) {
     const duracaoMin = parseInt(duracaoaula) || 60;
     await prisma.$queryRawUnsafe(`
@@ -272,7 +278,7 @@ export const createPedidoAula = async (data, incarregadoUserId) => {
   return result;
 };
 
-export const participarAula = async (pedidoId, alunoId, encarregadoUserId) => {
+export const marcarAula = async (pedidoId, alunoId, encarregadoUserId) => {
   const pedidos = await prisma.$queryRaw`
     SELECT data, horainicio, duracaoaula, disponibilidade_mensal_id, salaidsala, privacidade
     FROM pedidodeaula WHERE idpedidoaula = ${pedidoId}
@@ -280,13 +286,130 @@ export const participarAula = async (pedidoId, alunoId, encarregadoUserId) => {
   if (!pedidos || pedidos.length === 0) throw new Error("Pedido não encontrado");
   const p = pedidos[0];
 
-  const result = await createPedidoAula({
+  const result = await submeterPedidoAula({
     data: new Date(p.data).toISOString().split('T')[0],
     horainicio: p.horainicio instanceof Date ? p.horainicio.toISOString().substring(11, 16) : String(p.horainicio).substring(0, 5),
     duracaoaula: (() => { if (!p.duracaoaula) return 60; if (p.duracaoaula instanceof Date) return p.duracaoaula.getUTCHours() * 60 + p.duracaoaula.getUTCMinutes(); const [h, m] = String(p.duracaoaula).split(':'); return parseInt(h) * 60 + parseInt(m || '0'); })(),
     disponibilidade_mensal_id: p.disponibilidade_mensal_id,
     salaidsala: p.salaidsala,
     privacidade: p.privacidade,
-  }, encarregadoUserId);
+    encarregadoeducacaoutilizadoriduser: encarregadoUserId
+  });
+
+  const newPedidoId = result?.[0]?.idpedidoaula;
+  if (newPedidoId) {
+    await createAuditLog(parseInt(encarregadoUserId), '', 'UPDATE', 'PedidoAula', newPedidoId, `Aluno inscrito na aula via marcação`);
+  }
+
   return result;
+};
+
+export const cancelarParticipacaoAula = async (pedidoId, encarregadoUserId) => {
+  const pedido = await prisma.pedidodeaula.findUnique({
+    where: { idpedidoaula: parseInt(pedidoId) },
+    include: { estado: true }
+  });
+
+  if (!pedido) {
+    throw new Error("Pedido não encontrado");
+  }
+
+  if (pedido.encarregadoeducacaoutilizadoriduser !== parseInt(encarregadoUserId)) {
+    throw new Error("Não tem permissão para cancelar participação neste pedido");
+  }
+
+  const estadoNome = (pedido.estado.tipoestado || '').toUpperCase();
+  if (estadoNome !== 'PENDENTE' && estadoNome !== 'CONFIRMADO') {
+    throw new Error("Só pode cancelar participação em aulas pendentes ou confirmadas");
+  }
+
+  // Eliminar associações do pedido com os alunos deste encarregado
+  await prisma.alunopedidoaula.deleteMany({
+    where: { pedidodeaulaidpedidoaula: parseInt(pedidoId) }
+  });
+
+  // Atualizar estado para CANCELADO
+  const estadoCancelado = await prisma.estado.findFirst({
+    where: { tipoestado: { equals: 'Cancelado', mode: 'insensitive' } }
+  });
+
+  if (estadoCancelado) {
+    await prisma.pedidodeaula.update({
+      where: { idpedidoaula: parseInt(pedidoId) },
+      data: { estadoidestado: estadoCancelado.idestado }
+    });
+  }
+
+  await createAuditLog(parseInt(encarregadoUserId), '', 'CANCEL', 'PedidoAula', parseInt(pedidoId), 'Participação cancelada');
+
+  // Devolver minutos ao slot se existir
+  if (pedido.disponibilidade_mensal_id && pedido.duracaoaula) {
+    const duracaoMin = (() => {
+      if (pedido.duracaoaula instanceof Date) return pedido.duracaoaula.getUTCHours() * 60 + pedido.duracaoaula.getUTCMinutes();
+      const [h, m] = String(pedido.duracaoaula).split(':');
+      return parseInt(h) * 60 + parseInt(m || '0');
+    })();
+    await prisma.$queryRawUnsafe(`
+      UPDATE disponibilidade_mensal
+      SET minutos_ocupados = GREATEST(0, minutos_ocupados - $1)
+      WHERE iddisponibilidade_mensal = $2
+    `, duracaoMin, pedido.disponibilidade_mensal_id);
+  }
+
+  return { success: true, message: "Participação cancelada com sucesso" };
+};
+
+export const inserirAlunoPedido = async (pedidoId, alunoId, encarregadoUserId) => {
+  const pedido = await prisma.pedidodeaula.findUnique({
+    where: { idpedidoaula: parseInt(pedidoId) }
+  });
+
+  if (!pedido) {
+    throw new Error("Pedido não encontrado");
+  }
+
+  if (pedido.encarregadoeducacaoutilizadoriduser !== parseInt(encarregadoUserId)) {
+    throw new Error("Não tem permissão para associar alunos a este pedido");
+  }
+
+  const estado = await prisma.estado.findFirst({
+    where: { tipoestado: { equals: 'Pendente', mode: 'insensitive' } }
+  });
+
+  if (!estado || pedido.estadoidestado !== estado.idestado) {
+    throw new Error("Só pode associar alunos a pedidos pendentes");
+  }
+
+  const existe = await prisma.alunopedidoaula.findFirst({
+    where: {
+      pedidodeaulaidpedidoaula: parseInt(pedidoId),
+      alunoidaluno: parseInt(alunoId)
+    }
+  });
+
+  if (existe) {
+    throw new Error("Aluno já está associado a este pedido");
+  }
+
+  const associacao = await prisma.alunopedidoaula.create({
+    data: {
+      pedidodeaulaidpedidoaula: parseInt(pedidoId),
+      alunoidaluno: parseInt(alunoId)
+    }
+  });
+
+  const alu = await prisma.aluno.findUnique({
+    where: { idaluno: parseInt(alunoId) },
+    include: { utilizador: true }
+  });
+
+  const notificacao = await prisma.notificacao.create({
+    data: {
+      utilizadoriduser: alu.utilizadoriduser,
+      mensagem: ` Foi associado ao pedido de aula #${pedidoId}`,
+      tipo: 'ALUNO_ASSOCIADO_PEDIDO'
+    }
+  });
+
+  return associacao;
 };

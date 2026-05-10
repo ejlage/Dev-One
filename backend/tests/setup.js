@@ -2,8 +2,8 @@ import { beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 
 global.beforeAll(() => {
   process.env.NODE_ENV = 'test';
-  process.env.DATABASE_URL = 'postgresql://entartes:entartes_dev_password@localhost:5432/entartes';
-  process.env.JWT_SECRET = 'test_secret_key';
+  process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://entartes:entartes_dev_password@localhost:5432/entartes';
+  process.env.JWT_SECRET = process.env.JWT_SECRET || 'entartes_secret_key_2026_dev';
 });
 
 global.afterAll(() => {

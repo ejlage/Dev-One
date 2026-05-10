@@ -33,7 +33,7 @@ export async function getAllPedidosAula() {
   });
 }
 
-export async function getPedidoAulaById(id) {
+export async function obterPedido(id) {
   return prisma.pedidodeaula.findUnique({
     where: { idpedidoaula: parseInt(id) },
     include: {
@@ -111,7 +111,7 @@ export async function getPedidosPendentes() {
   });
 }
 
-export async function createPedidoAula(data) {
+export async function submeterPedidoAula(data) {
   const {
     data: dataAula,
     horainicio,

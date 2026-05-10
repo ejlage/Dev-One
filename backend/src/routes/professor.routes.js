@@ -20,21 +20,62 @@ export default async function professorRoutes(fastify) {
     return verifyToken(req, reply);
   });
 
-  fastify.get("/disponibilidades", async (req, reply) => {
+  fastify.get("/disponibilidades", {
+    schema: {
+      tags: ["Professor"],
+      description: "Listar disponibilidades do professor autenticado",
+      security: [{ bearerAuth: [] }],
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            data: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  id: { type: "string" },
+                  data: { type: "string" },
+                  horainicio: { type: "string" },
+                  horafim: { type: "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }, async (req, reply) => {
     try {
-      if (req.user.role !== "PROFESSOR") {
+      if (!req.user.normalizedRoles.includes("PROFESSOR")) {
         return reply.status(403).send({ success: false, error: "Acesso negado" });
       }
-      const disponibilidades = await professorService.getDisponibilidadesMensais(req.user.id);
+      const disponibilidades = await professorService.verificarDisponibilidadeProfessor(req.user.id);
       return reply.send({ success: true, data: disponibilidades.map(formatDisp) });
     } catch (err) {
       return reply.status(500).send({ success: false, error: err.message });
     }
   });
 
-  fastify.get("/modalidades", async (req, reply) => {
+  fastify.get("/modalidades", {
+    schema: {
+      tags: ["Professor"],
+      description: "Listar modalidades do professor autenticado",
+      security: [{ bearerAuth: [] }],
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            data: { type: "array" }
+          }
+        }
+      }
+    }
+  }, async (req, reply) => {
     try {
-      if (req.user.role !== "PROFESSOR") {
+      if (!req.user.normalizedRoles.includes("PROFESSOR")) {
         return reply.status(403).send({ success: false, error: "Acesso negado" });
       }
       const modalidades = await professorService.getProfessorModalidades(req.user.id);
@@ -44,9 +85,24 @@ export default async function professorRoutes(fastify) {
     }
   });
 
-  fastify.get("/aulas", async (req, reply) => {
+  fastify.get("/aulas", {
+    schema: {
+      tags: ["Professor"],
+      description: "Listar aulas do professor autenticado",
+      security: [{ bearerAuth: [] }],
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            data: { type: "array" }
+          }
+        }
+      }
+    }
+  }, async (req, reply) => {
     try {
-      if (req.user.role !== "PROFESSOR") {
+      if (!req.user.normalizedRoles.includes("PROFESSOR")) {
         return reply.status(403).send({ success: false, error: "Acesso negado" });
       }
       const aulas = await professorService.getProfessorAulas(req.user.id);
@@ -56,9 +112,35 @@ export default async function professorRoutes(fastify) {
     }
   });
 
-  fastify.post("/disponibilidades", async (req, reply) => {
+  fastify.post("/disponibilidades", {
+    schema: {
+      tags: ["Professor"],
+      description: "Criar nova disponibilidade",
+      security: [{ bearerAuth: [] }],
+      body: {
+        type: "object",
+        required: ["modalidadesprofessoridmodalidadeprofessor", "data", "horainicio", "horafim"],
+        properties: {
+          modalidadesprofessoridmodalidadeprofessor: { type: "integer" },
+          data: { type: "string" },
+          horainicio: { type: "string" },
+          horafim: { type: "string" },
+          salaid: { type: "integer" }
+        }
+      },
+      response: {
+        201: {
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            data: { type: "array" }
+          }
+        }
+      }
+    }
+  }, async (req, reply) => {
     try {
-      if (req.user.role !== "PROFESSOR") {
+      if (!req.user.normalizedRoles.includes("PROFESSOR")) {
         return reply.status(403).send({ success: false, error: "Acesso negado" });
       }
       const { modalidadesprofessoridmodalidadeprofessor, data, horainicio, horafim, salaid } = req.body;
@@ -90,9 +172,40 @@ export default async function professorRoutes(fastify) {
     }
   });
 
-  fastify.put("/disponibilidades/:id", async (req, reply) => {
+  fastify.put("/disponibilidades/:id", {
+    schema: {
+      tags: ["Professor"],
+      description: "Atualizar disponibilidade existente",
+      security: [{ bearerAuth: [] }],
+      params: {
+        type: "object",
+        properties: {
+          id: { type: "string" }
+        }
+      },
+      body: {
+        type: "object",
+        properties: {
+          data: { type: "string" },
+          horainicio: { type: "string" },
+          horafim: { type: "string" },
+          ativo: { type: "boolean" },
+          salaid: { type: "integer" }
+        }
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            data: { type: "array" }
+          }
+        }
+      }
+    }
+  }, async (req, reply) => {
     try {
-      if (req.user.role !== "PROFESSOR") {
+      if (!req.user.normalizedRoles.includes("PROFESSOR")) {
         return reply.status(403).send({ success: false, error: "Acesso negado" });
       }
       const { id } = req.params;
@@ -111,9 +224,30 @@ export default async function professorRoutes(fastify) {
     }
   });
 
-  fastify.delete("/disponibilidades/:id", async (req, reply) => {
+  fastify.delete("/disponibilidades/:id", {
+    schema: {
+      tags: ["Professor"],
+      description: "Eliminar disponibilidade",
+      security: [{ bearerAuth: [] }],
+      params: {
+        type: "object",
+        properties: {
+          id: { type: "string" }
+        }
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            message: { type: "string" }
+          }
+        }
+      }
+    }
+  }, async (req, reply) => {
     try {
-      if (req.user.role !== "PROFESSOR") {
+      if (!req.user.normalizedRoles.includes("PROFESSOR")) {
         return reply.status(403).send({ success: false, error: "Acesso negado" });
       }
       const { id } = req.params;
@@ -124,7 +258,22 @@ export default async function professorRoutes(fastify) {
     }
   });
 
-  fastify.get("/disponibilidades/all", async (req, reply) => {
+  fastify.get("/disponibilidades/all", {
+    schema: {
+      tags: ["Professor"],
+      description: "Listar todas as disponibilidades de todos os professores",
+      security: [{ bearerAuth: [] }],
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            data: { type: "array" }
+          }
+        }
+      }
+    }
+  }, async (req, reply) => {
     try {
       const disponibilidades = await professorService.getAllDisponibilidadesMensais();
       const formatted = disponibilidades.map(d => {
@@ -165,7 +314,22 @@ export default async function professorRoutes(fastify) {
     }
   });
 
-  fastify.get("/dias-semana", async (req, reply) => {
+  fastify.get("/dias-semana", {
+    schema: {
+      tags: ["Professor"],
+      description: "Listar dias da semana",
+      security: [{ bearerAuth: [] }],
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            data: { type: "array" }
+          }
+        }
+      }
+    }
+  }, async (req, reply) => {
     try {
       const dias = professorService.getDiasSemana();
       return reply.send({ success: true, data: dias });

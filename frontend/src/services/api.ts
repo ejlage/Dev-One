@@ -30,6 +30,11 @@ class ApiService {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
+    const activeRole = localStorage.getItem('activeRole');
+    if (activeRole) {
+      headers['X-Active-Role'] = activeRole;
+    }
+
     const response = await fetch(`${API_URL}${endpoint}`, {
       ...options,
       headers,
@@ -73,7 +78,7 @@ class ApiService {
     return this.request<{ success: boolean; data: { idmodalidade: number; nome: string }[] }>('/api/public/modalidades');
   }
 
-  async participarAula(pedidoId: number, alunoId: number) {
+  async marcarAula(pedidoId: number, alunoId: number) {
     return this.request<{ success: boolean; data: any }>(`/api/encarregado/aulas/${pedidoId}/participar`, {
       method: 'POST',
       body: JSON.stringify({ alunoId }),
@@ -95,7 +100,7 @@ class ApiService {
   }
 
   // Aulas
-  async getAulas() {
+  async consultarAula() {
     return this.request<{ success: boolean; data: any[] }>('/api/aulas/all');
   }
 
@@ -127,7 +132,7 @@ class ApiService {
     return this.request<{ success: boolean; data: any[] }>('/api/encarregado/aulas/open');
   }
 
-  async createEncarregadoAula(data: {
+  async submeterPedidoAula(data: {
     data: string;
     horainicio: string;
     duracaoaula?: string;
@@ -183,7 +188,7 @@ class ApiService {
     });
   }
 
-  async createAula(data: { pedidodeaulaId: number; salaId: number; estadoaulaId?: number }) {
+  async criarAula(data: { pedidodeaulaId: number; salaId: number; estadoaulaId?: number }) {
     return this.request<{ success: boolean; data: any }>('/api/aulas', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -196,10 +201,24 @@ class ApiService {
     });
   }
 
-  async cancelAula(id: number) {
+  async cancelarAula(id: number) {
     return this.request<{ success: boolean; data: any }>(`/api/aulas/${id}/cancel`, {
       method: 'POST',
     });
+  }
+
+  // RF17 — Cancelar Participação (Encarregado)
+  async cancelarParticipacaoAula(pedidoId: number) {
+    return this.request<{ success: boolean; data: any }>(`/api/encarregado/aulas/${pedidoId}/cancelar-participacao`, {
+      method: 'POST',
+    });
+  }
+
+  // RF15 — Extrato de Aulas (summary agnóstico — usa o mesmo endpoint do role)
+  async getExtratoAulas() {
+    // Usa o mesmo endpoint que já carrega as aulas do role atual
+    // A agregação por mês/ano é feita no frontend
+    return this.request<{ success: boolean; data: any[] }>('/api/aulas/extrato');
   }
 
   // Eventos
@@ -239,7 +258,11 @@ class ApiService {
 
   // Figurinos
   async getFigurinos(params?: { tipo?: number; tamanho?: number; genero?: number }) {
-    const query = new URLSearchParams(params as any).toString();
+    const query = params ? new URLSearchParams({
+      tipo: params.tipo?.toString() || '',
+      tamanho: params.tamanho?.toString() || '',
+      genero: params.genero?.toString() || ''
+    }).toString() : '';
     return this.request<{ success: boolean; data: any[] }>(`/api/figurinos${query ? `?${query}` : ''}`);
   }
 
@@ -277,7 +300,11 @@ class ApiService {
 
   // Turmas
   async getTurmas(params?: { professorId?: number; modalidadeId?: number; estado?: string }) {
-    const query = new URLSearchParams(params as any).toString();
+    const query = params ? new URLSearchParams({
+      professorId: params.professorId?.toString() || '',
+      modalidadeId: params.modalidadeId?.toString() || '',
+      estado: params.estado || ''
+    }).toString() : '';
     return this.request<{ success: boolean; data: any[] }>(`/api/turmas${query ? `?${query}` : ''}`);
   }
 
@@ -359,6 +386,21 @@ class ApiService {
     });
   }
 
+  async submitContact(data: {
+    nome: string;
+    email: string;
+    telemovel: string;
+    mensagem?: string;
+    modalidade?: string;
+    faixaEtaria?: string;
+    tipo?: string;
+  }) {
+    return this.request<{ success: boolean; message: string }>('/api/public/contactos', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
   // Salas
   async getSalas() {
     return this.request<{ success: boolean; data: any[] }>('/api/salas');
@@ -376,13 +418,24 @@ class ApiService {
     return this.request<{ success: boolean; data: any[] }>(`/api/salas/${id}/availability${query}`);
   }
 
+  async consultarSalaDisponivel(salaId: number, data: string, hora: string, duracao: number) {
+    return this.request<{ success: boolean; data: any }>('/api/salas/consultar', {
+      method: 'POST',
+      body: JSON.stringify({ salaId, data, hora, duracao }),
+    });
+  }
+
+  async obterAulaDoPedido(pedidoId: number) {
+    return this.request<{ success: boolean; data: any }>(`/api/aulas/pedido/${pedidoId}`);
+  }
+
   // Anuncios
   async getAnuncios(params?: { estado?: string }) {
-    const query = new URLSearchParams(params as any).toString();
+    const query = params?.estado ? `?estado=${params.estado}` : '';
     return this.request<{ success: boolean; data: any[] }>(`/api/anuncios${query ? `?${query}` : ''}`);
   }
 
-  async createAnuncio(data: {
+  async registarAnuncio(data: {
     valor?: number;
     dataanuncio: string;
     datainicio?: string;
@@ -414,21 +467,11 @@ class ApiService {
     });
   }
 
-  async approveAnuncio(id: number) {
-    return this.request<{ success: boolean; data: any }>(`/api/anuncios/${id}/approve`, {
+  async avaliarAnuncio(id: number, decisao: 'aprovar' | 'rejeitar', motivo?: string) {
+    return this.request<{ success: boolean; data: any }>(`/api/anuncios/${id}/avaliar`, {
       method: 'PUT',
+      body: JSON.stringify({ decisao, motivo }),
     });
-  }
-
-  async submitContact(data: { nome: string; email: string; telemovel?: string; mensagem?: string }) {
-    return this.request<{ success: boolean; message?: string }>('/api/contacto', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
-
-  async getContactos() {
-    return this.request<{ success: boolean; data: any[] }>('/api/contacto');
   }
 
   async getPedidosAula() {
@@ -494,7 +537,7 @@ class ApiService {
     return this.request<{ success: boolean; data: any[] }>('/api/aluguer/user/reservas');
   }
 
-  async criarReserva(data: {
+  async registarTransacao(data: {
     quantidade: number;
     datatransacao: string;
     anuncioidanuncio: number;
@@ -508,10 +551,10 @@ class ApiService {
     });
   }
 
-  async atualizarReservaEstado(id: number, estadoidestado: number, motivorejeicao?: string) {
-    return this.request<{ success: boolean; data: any }>(`/api/aluguer/${id}/status`, {
+async avaliarPedidoReserva(id: number, decisao: string, estadoidestado?: number, motivorejeicao?: string) {
+    return this.request<{ success: boolean, data: any }>(`/api/aluguer/${id}/avaliar`, {
       method: 'PUT',
-      body: JSON.stringify({ estadoidestado, ...(motivorejeicao !== undefined && { motivorejeicao }) }),
+      body: JSON.stringify({ decisao, estadoidestado, ...(motivorejeicao !== undefined && { motivorejeicao }) }),
     });
   }
 
@@ -602,6 +645,10 @@ class ApiService {
   }
 
   // Professor Disponibilidades
+  async getDisponibilidades() {
+    return this.request<{ success: boolean; data: any[] }>('/api/public/disponibilidades');
+  }
+
   async getProfessorDisponibilidades() {
     return this.request<{ success: boolean; data: any[] }>('/api/public/disponibilidades');
   }
@@ -652,6 +699,19 @@ class ApiService {
 
   async getUserModalidades(userId: number | string) {
     return this.request<{ success: boolean; data: any[] }>(`/api/users/${Number(userId)}/modalidades`);
+  }
+
+  async getAuditLogs(filters?: { utilizadorId?: number; acao?: string; entidade?: string; dataInicio?: string; dataFim?: string; limit?: number; offset?: number }) {
+    const params = new URLSearchParams();
+    if (filters?.utilizadorId) params.set('utilizadorId', String(filters.utilizadorId));
+    if (filters?.acao) params.set('acao', filters.acao);
+    if (filters?.entidade) params.set('entidade', filters.entidade);
+    if (filters?.dataInicio) params.set('dataInicio', filters.dataInicio);
+    if (filters?.dataFim) params.set('dataFim', filters.dataFim);
+    if (filters?.limit) params.set('limit', String(filters.limit));
+    if (filters?.offset) params.set('offset', String(filters.offset));
+    const qs = params.toString();
+    return this.request<{ success: boolean; data: any[]; total: number; limit: number; offset: number }>(`/api/audit${qs ? `?${qs}` : ''}`);
   }
 }
 

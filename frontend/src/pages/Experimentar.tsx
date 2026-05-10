@@ -12,8 +12,17 @@ const FAIXAS_ETARIAS = [
 ];
 
 export function Experimentar() {
+  type ContactForm = {
+    nome: string;
+    email: string;
+    telemovel: string;
+    modalidade: string;
+    faixaEtaria: string;
+    mensagem: string;
+  };
+  
   const [modalidades, setModalidades] = useState<string[]>(MODALIDADES_FALLBACK);
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<ContactForm>({
     nome: '',
     email: '',
     telemovel: '',
@@ -47,7 +56,8 @@ export function Experimentar() {
         mensagem: form.mensagem || undefined,
         ...(form.modalidade && { modalidade: form.modalidade }),
         ...(form.faixaEtaria && { faixaEtaria: form.faixaEtaria }),
-      } as any);
+        tipo: 'experimental',
+      });
       if (res.success) setEnviado(true);
       else setErro('Erro ao enviar. Por favor tenta novamente.');
     } catch {

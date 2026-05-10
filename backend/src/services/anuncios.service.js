@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { createAuditLog } from "./audit.service.js";
 
 const prisma = new PrismaClient();
 const notificacoesService = {};
@@ -49,7 +50,7 @@ export const getAllAnuncios = async () => {
   return rows.map(mapAnuncio);
 };
 
-export const getAnuncioById = async (id) => {
+export const consultarAnuncio = async (id) => {
   return prisma.anuncio.findUnique({
     where: { idanuncio: parseInt(id) },
     include: {
@@ -74,7 +75,7 @@ export const getAnunciosByEstado = async (estadoTipo) => {
   });
 };
 
-export const createAnuncio = async (data) => {
+export const registarAnuncio = async (data, userId = null, userNome = '') => {
   const { valor, dataanuncio, datainicio, datafim, quantidade, figurinoidfigurino, estadoidestado, direcaoutilizadoriduser, professorutilizadoriduser, encarregadoeducacaoutilizadoriduser, tipotransacao } = data;
   
   const agora = new Date();
@@ -122,6 +123,8 @@ export const createAnuncio = async (data) => {
 
   await criarNotificacaoValidacao(novoAnuncio.idanuncio);
 
+  await createAuditLog(userId ? parseInt(userId) : null, userNome, 'CREATE', 'Anuncio', novoAnuncio.idanuncio, 'Anúncio criado');
+
   return mapAnuncio(novoAnuncio);
 };
 
@@ -168,60 +171,82 @@ export const deleteAnuncio = async (id, userId, userRole) => {
       throw new Error('Só é possível eliminar anúncios pendentes');
     }
   }
-  return prisma.anuncio.delete({ where: { idanuncio: parseInt(id) } });
+  const result = await prisma.anuncio.delete({ where: { idanuncio: parseInt(id) } });
+  await _auditAnuncioDelete(id, userId, userNome || '');
+  return result;
 };
 
-export const approveAnuncio = async (id, userId) => {
-  const estadoAprovado = await prisma.estado.findFirst({
-    where: { tipoestado: { equals: "Aprovado", mode: "insensitive" } },
-  });
-  
-  if (!estadoAprovado) {
-    throw new Error("Estado APROVADO não encontrado");
-  }
-  
-  const anuncio = await prisma.anuncio.update({
-    where: { idanuncio: parseInt(id) },
-    data: { estadoidestado: estadoAprovado.idestado },
-    include: ANUNCIO_INCLUDE,
-  });
-
-  if (anuncio.encarregadoeducacaoutilizadoriduser) {
-    await createNotificacaoAnuncio(anuncio.encarregadoeducacaoutilizadoriduser, anuncio.idanuncio, "APROVADO");
-  }
-  if (anuncio.professorutilizadoriduser) {
-    await createNotificacaoAnuncio(anuncio.professorutilizadoriduser, anuncio.idanuncio, "APROVADO");
-  }
-
-  return mapAnuncio(anuncio);
+const _auditAnuncioDelete = async (id, userId, userNome) => {
+  try {
+    await createAuditLog(userId ? parseInt(userId) : null, userNome, 'DELETE', 'Anuncio', parseInt(id), 'Anúncio removido');
+  } catch (_) {}
+};
+const _auditAnuncioApprove = async (id, userId, userNome) => {
+  try {
+    await createAuditLog(userId ? parseInt(userId) : null, userNome, 'APPROVE', 'Anuncio', parseInt(id), 'Anúncio aprovado');
+  } catch (_) {}
+};
+const _auditAnuncioReject = async (id, userId, userNome, motivo) => {
+  try {
+    await createAuditLog(userId ? parseInt(userId) : null, userNome, 'REJECT', 'Anuncio', parseInt(id), `Anúncio rejeitado: ${motivo || ''}`);
+  } catch (_) {}
 };
 
-export const rejectAnuncio = async (id, userId, motivo) => {
-  const estadoRejeitado = await prisma.estado.findFirst({
-    where: { tipoestado: { equals: "Rejeitado", mode: "insensitive" } },
-  });
+export const avaliarAnuncio = async (id, decisao, userId, motivo) => {
+  if (decisao === 'aprovar') {
+    const estadoAprovado = await prisma.estado.findFirst({
+      where: { tipoestado: { equals: "Aprovado", mode: "insensitive" } },
+    });
+    
+    if (!estadoAprovado) {
+      throw new Error("Estado APROVADO não encontrado");
+    }
+    
+    const anuncio = await prisma.anuncio.update({
+      where: { idanuncio: parseInt(id) },
+      data: { estadoidestado: estadoAprovado.idestado },
+      include: ANUNCIO_INCLUDE,
+    });
 
-  if (!estadoRejeitado) {
-    throw new Error("Estado REJEITADO não encontrado");
+    if (anuncio.encarregadoeducacaoutilizadoriduser) {
+      await createNotificacaoAnuncio(anuncio.encarregadoeducacaoutilizadoriduser, anuncio.idanuncio, "APROVADO");
+    }
+    if (anuncio.professorutilizadoriduser) {
+      await createNotificacaoAnuncio(anuncio.professorutilizadoriduser, anuncio.idanuncio, "APROVADO");
+    }
+
+    await _auditAnuncioApprove(id, userId, userNome || 'Direção');
+
+    return mapAnuncio(anuncio);
+  } else if (decisao === 'rejeitar') {
+    const estadoRejeitado = await prisma.estado.findFirst({
+      where: { tipoestado: { equals: "Rejeitado", mode: "insensitive" } },
+    });
+
+    if (!estadoRejeitado) {
+      throw new Error("Estado REJEITADO não encontrado");
+    }
+
+    const anuncio = await prisma.anuncio.update({
+      where: { idanuncio: parseInt(id) },
+      data: {
+        estadoidestado: estadoRejeitado.idestado,
+        motivorejeicao: motivo || null,
+      },
+      include: ANUNCIO_INCLUDE,
+    });
+
+    if (anuncio.encarregadoeducacaoutilizadoriduser) {
+      await createNotificacaoAnuncio(anuncio.encarregadoeducacaoutilizadoriduser, anuncio.idanuncio, "REJEITADO", motivo);
+    }
+    if (anuncio.professorutilizadoriduser) {
+      await createNotificacaoAnuncio(anuncio.professorutilizadoriduser, anuncio.idanuncio, "REJEITADO", motivo);
+    }
+
+    await _auditAnuncioReject(id, userId, userNome || 'Direção', motivo);
+
+    return mapAnuncio(anuncio);
   }
-
-  const anuncio = await prisma.anuncio.update({
-    where: { idanuncio: parseInt(id) },
-    data: {
-      estadoidestado: estadoRejeitado.idestado,
-      motivorejeicao: motivo || null,
-    },
-    include: ANUNCIO_INCLUDE,
-  });
-
-  if (anuncio.encarregadoeducacaoutilizadoriduser) {
-    await createNotificacaoAnuncio(anuncio.encarregadoeducacaoutilizadoriduser, anuncio.idanuncio, "REJEITADO", motivo);
-  }
-  if (anuncio.professorutilizadoriduser) {
-    await createNotificacaoAnuncio(anuncio.professorutilizadoriduser, anuncio.idanuncio, "REJEITADO", motivo);
-  }
-
-  return mapAnuncio(anuncio);
 };
 
 export const ressubmeterAnuncio = async (id, userId, userRole) => {

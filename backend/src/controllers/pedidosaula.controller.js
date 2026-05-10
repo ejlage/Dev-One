@@ -11,10 +11,10 @@ export async function getAllPedidosAula(req, reply) {
   }
 }
 
-export async function getPedidoAulaById(req, reply) {
+export async function obterPedido(req, reply) {
   try {
     const { id } = req.params;
-    const pedido = await pedidosaulaService.getPedidoAulaById(id);
+    const pedido = await pedidosaulaService.obterPedido(id);
     
     if (!pedido) {
       return reply.status(404).send({ success: false, error: 'Pedido não encontrado' });
@@ -48,7 +48,7 @@ export async function getPedidosPendentes(req, reply) {
   }
 }
 
-export async function createPedidoAula(req, reply) {
+export async function submeterPedidoAula(req, reply) {
   try {
     const userId = req.user.id;
     const { 
@@ -69,7 +69,7 @@ export async function createPedidoAula(req, reply) {
       });
     }
 
-    const pedido = await pedidosaulaService.createPedidoAula({
+    const pedido = await pedidosaulaService.submeterPedidoAula({
       data: dataAula,
       horainicio,
       duracaoaula: duracaoaula || '01:00',

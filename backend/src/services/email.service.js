@@ -10,13 +10,15 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-export async function sendContactEmail({ nome, email, telemovel, modalidade, faixaEtaria, mensagem }) {
-  const assunto = `Nova inscrição experimental — ${nome}`;
+export async function sendContactEmail({ nome, email, telemovel, modalidade, faixaEtaria, mensagem, tipo = 'experimental' }) {
+  const isContacto = tipo === 'contacto';
+  const assunto = isContacto ? `Novo contacto — ${nome}` : `Nova inscrição experimental — ${nome}`;
+  const titulo = isContacto ? 'Novo Contacto' : 'Nova Aula Experimental';
 
   const html = `
     <div style="font-family:sans-serif;max-width:560px;margin:0 auto;color:#0a1a17">
       <div style="background:#0d6b5e;padding:24px 32px;border-radius:12px 12px 0 0">
-        <h2 style="margin:0;color:#fff;font-size:20px">Nova Aula Experimental</h2>
+        <h2 style="margin:0;color:#fff;font-size:20px">${titulo}</h2>
       </div>
       <div style="background:#f4f9f8;padding:32px;border-radius:0 0 12px 12px;border:1px solid #d1e8e4">
         <table style="width:100%;border-collapse:collapse">

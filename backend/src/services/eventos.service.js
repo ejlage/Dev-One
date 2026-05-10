@@ -1,5 +1,6 @@
 import prisma from "../config/db.js";
 import { createNotificacao } from "./notificacoes.service.js";
+import { createAuditLog } from "./audit.service.js";
 
 async function notificarTodosUtilizadores(mensagem, tipo) {
   const users = await prisma.utilizador.findMany({ select: { iduser: true } });
@@ -31,7 +32,7 @@ export const getEventoById = async (id) => {
   return evento ? mapEvento(evento) : null;
 };
 
-export const createEvento = async (data, userId) => {
+export const createEvento = async (data, userId, userNome = '') => {
   const { titulo, descricao, data: dataevento, datafim, local, imagem, linkBilhetes, destaque, publicado } = data;
   const isPublicado = publicado === true || publicado === 'true';
   const evento = await prisma.evento.create({
@@ -51,10 +52,13 @@ export const createEvento = async (data, userId) => {
   if (isPublicado) {
     await notificarTodosUtilizadores(`Novo evento: "${titulo}" — ${new Date(dataevento).toLocaleDateString('pt-PT')}`, 'EVENTO_PUBLICADO');
   }
+
+  await createAuditLog(userId ? parseInt(userId) : null, userNome, 'CREATE', 'Evento', evento.idevento, `Evento '${titulo}' criado`);
+
   return mapEvento(evento);
 };
 
-export const updateEvento = async (id, data) => {
+export const updateEvento = async (id, data, userId = null, userNome = '') => {
   const exists = await prisma.evento.findUnique({ where: { idevento: id } });
   if (!exists) throw new Error("Evento não encontrado");
 
@@ -78,24 +82,33 @@ export const updateEvento = async (id, data) => {
     await notificarTodosUtilizadores(`O evento "${exists.titulo}" foi remarcado para ${novaData}`, 'EVENTO_REMARCADO');
   }
 
+  await createAuditLog(userId ? parseInt(userId) : null, userNome, 'UPDATE', 'Evento', parseInt(id), 'Evento atualizado');
+
   return mapEvento(evento);
 };
 
-export const deleteEvento = async (id) => {
+export const deleteEvento = async (id, userId = null, userNome = '') => {
   const exists = await prisma.evento.findUnique({ where: { idevento: id } });
   if (!exists) throw new Error("Evento não encontrado");
   await prisma.evento.delete({ where: { idevento: id } });
+
+  await createAuditLog(userId ? parseInt(userId) : null, userNome, 'DELETE', 'Evento', parseInt(id), 'Evento removido');
+
   return { message: "Evento eliminado com sucesso" };
 };
 
-export const publishEvento = async (id) => {
+export const publishEvento = async (id, userId = null, userNome = '') => {
   const exists = await prisma.evento.findUnique({ where: { idevento: id } });
   if (!exists) throw new Error("Evento não encontrado");
+  const isPublishing = !exists.publicado;
   const evento = await prisma.evento.update({
     where: { idevento: id },
-    data: { publicado: true },
+    data: { publicado: !exists.publicado },
   });
   const dataStr = exists.dataevento.toLocaleDateString('pt-PT');
   await notificarTodosUtilizadores(`Novo evento: "${exists.titulo}" — ${dataStr}`, 'EVENTO_PUBLICADO');
+
+  await createAuditLog(userId ? parseInt(userId) : null, userNome, 'UPDATE', 'Evento', parseInt(id), isPublishing ? 'Evento publicado' : 'Evento despublicado');
+
   return mapEvento(evento);
 };

@@ -3,7 +3,7 @@ import { createNotificacao } from "./notificacoes.service.js";
 
 const prisma = new PrismaClient();
 
-const CHECK_INTERVAL_MS = 60 * 60 * 1000;
+const CHECK_INTERVAL_MS = 60 * 1000;
 const AUTO_REJECT_HOURS = 3;
 
 export async function startPedidoAulaScheduler() {
@@ -19,12 +19,15 @@ export async function startPedidoAulaScheduler() {
         return;
       }
 
-      const tresHorasAgo = new Date(Date.now() - AUTO_REJECT_HOURS * 60 * 60 * 1000);
-      
+      // datapedido é DATE (sem time), comparamos com o início do dia de hoje
+      // para evitar auto-rejeitar pedidos criados hoje (que são recentes)
+      const hojeInicio = new Date();
+      hojeInicio.setHours(0, 0, 0, 0);
+
       const pedidosAntigos = await prisma.pedidodeaula.findMany({
         where: {
           estadoidestado: estadoPendente.idestado,
-          datapedido: { lte: tresHorasAgo }
+          datapedido: { lt: hojeInicio }
         }
       });
 
@@ -137,9 +140,47 @@ export async function startPedidoAulaScheduler() {
 
   checkAndAutoReject();
   checkAndExpireSugestoes();
+  checkStockMinimo();
   
   setInterval(checkAndAutoReject, CHECK_INTERVAL_MS);
   setInterval(checkAndExpireSugestoes, CHECK_INTERVAL_MS);
+  setInterval(checkStockMinimo, CHECK_INTERVAL_MS);
+}
+
+async function checkStockMinimo() {
+  try {
+    const directions = await prisma.direcao.findMany();
+    if (directions.length === 0) return;
+
+    const figurinos = await prisma.figurino.findMany({
+      where: {
+        stockminimo: { gt: 0 }
+      }
+    });
+
+    for (const figurino of figurinos) {
+      if (figurino.quantidadedisponivel <= figurino.stockminimo) {
+        const ultimoAlerta = await prisma.notificacao.findFirst({
+          where: {
+            tipo: 'STOCK_BAIXO',
+            utilizadoriduser: directions[0].utilizadoriduser,
+            datanotificacao: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+          }
+        });
+
+        if (!ultimoAlerta) {
+          await createNotificacao(
+            directions[0].utilizadoriduser,
+            `Alerta de stock: O figurino #${figurino.idfigurino} tem apenas ${figurino.quantidadedisponivel} unidades disponíveis (mínimo: ${figurino.stockminimo})`,
+            'STOCK_BAIXO'
+          );
+          console.log(`[Scheduler] Alerta de stock baixo - figurino #${figurino.idfigurino}`);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('[Scheduler] Error checking stock mínimo:', error.message);
+  }
 }
 
 export async function stopPedidoAulaScheduler() {

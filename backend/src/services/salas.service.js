@@ -135,3 +135,75 @@ export const getSalaAvailability = async (id, data) => {
     disponibilidade
   };
 };
+
+/**
+ * Consultar disponibilidade de sala para uma data/hora/duração específicas
+ * @param {number} salaId - ID da sala
+ * @param {string} data - Data no formato YYYY-MM-DD
+ * @param {string} hora - Hora no formato HH:MM
+ * @param {number} duracao - Duração em minutos
+ * @returns {Promise<object>} Dados da disponibilidade
+ */
+export const consultarSalaDisponivel = async (salaId, data, hora, duracao) => {
+  const [horaH, horaM] = hora.split(':').map(Number);
+  const horaInicioMinutos = horaH * 60 + horaM;
+  const horaFimMinutos = horaInicioMinutos + duracao;
+
+  // Verificar se sala existe
+  const sala = await prisma.sala.findUnique({
+    where: { idsala: parseInt(salaId) }
+  });
+
+  if (!sala) {
+    throw new Error("Sala não encontrada");
+  }
+
+  // Buscar aulas/confirmações na mesma data
+  const reservas = await prisma.$queryRaw`
+    SELECT pa.idpedidoaula, pa.horainicio, pa.duracaoaula, pa.data, e.tipoestado
+    FROM pedidodeaula pa
+    JOIN estado e ON pa.estadoidestado = e.idestado
+    WHERE pa.salaidsala = ${parseInt(salaId)}
+    AND pa.data = ${data}::date
+    AND LOWER(e.tipoestado) IN ('pendente', 'confirmado', 'aprovado')
+  `;
+
+  // Verificar conflitos
+  for (const reserva of reservas) {
+    const resHoraInicio = reserva.horainicio instanceof Date 
+      ? reserva.horainicio.getHours() * 60 + reserva.horainicio.getMinutes()
+      : parseInt(String(reserva.horainicio).split(':')[0]) * 60 + parseInt(String(reserva.horainicio).split(':')[1]);
+    
+    const resDuracao = reserva.duracaoaula instanceof Date
+      ? reserva.duracaoaula.getHours() * 60 + reserva.duracaoaula.getMinutes()
+      : parseInt(String(reserva.duracaoaula).split(':')[0]) * 60 + parseInt(String(reserva.duracaoaula).split(':')[1]);
+
+    const resHoraFim = resHoraInicio + resDuracao;
+
+    // Verificar sobreposição
+    if (horaInicioMinutos < resHoraFim && horaFimMinutos > resHoraInicio) {
+      return {
+        disponivel: false,
+        sala: { id: sala.idsala, nome: sala.nomesala },
+        data,
+        hora,
+        duracao,
+        conflito: {
+          idPedido: reserva.idpedidoaula,
+          horaInicio: `${Math.floor(resHoraInicio / 60).toString().padStart(2, '0')}:${(resHoraInicio % 60).toString().padStart(2, '0')}`,
+          horaFim: `${Math.floor(resHoraFim / 60).toString().padStart(2, '0')}:${(resHoraFim % 60).toString().padStart(2, '0')}`
+        },
+        mensagem: "Sala já está ocupada neste horário"
+      };
+    }
+  }
+
+  return {
+    disponivel: true,
+    sala: { id: sala.idsala, nome: sala.nomesala },
+    data,
+    hora,
+    duracao,
+    mensagem: "Sala disponível para o horário solicitado"
+  };
+};

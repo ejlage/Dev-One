@@ -7,7 +7,7 @@ import { AulasStatistics } from '../components/AulasStatistics';
 import api from '../services/api';
 
 export function Dashboard() {
-  const { user } = useAuth();
+  const { user, activeRole } = useAuth();
   const [currentPage, setCurrentPage] = useState(1);
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [aulas, setAulas] = useState<any[]>([]);
@@ -15,46 +15,73 @@ export function Dashboard() {
   const [turmas, setTurmas] = useState<any[]>([]);
   const [disponibilidades, setDisponibilidades] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const itemsPerPage = 5;
 
   useEffect(() => {
+    if (!user || !activeRole) return;
+
     const fetchData = async () => {
-      if (!user) return;
+      setLoading(true);
+      setError(null);
+      
       try {
-        const aulasPromise =
-          user.role === 'ENCARREGADO' ? api.getEncarregadoAulas()
-          : user.role === 'PROFESSOR'  ? api.getProfessorAulas()
-          : user.role === 'ALUNO'      ? api.getAlunoAulas()
-          : api.getDirecaoAulas();
+        let aulasRes, anunciosRes, turmasRes, dispRes;
 
-        const dispPromise =
-          user.role === 'PROFESSOR'  ? api.getMyDisponibilidades()
-          : user.role === 'ALUNO'    ? api.getAlunoDisponibilidades()
-          : user.role === 'ENCARREGADO' ? api.getEncarregadoDisponibilidades()
-          : Promise.resolve({ success: false, data: [] });
+        if (activeRole === 'ENCARREGADO') {
+          [aulasRes, anunciosRes, turmasRes, dispRes] = await Promise.all([
+            api.getEncarregadoAulas(),
+            api.getAnuncios(),
+            api.getEncarregadoAulasOpen(),
+            api.getDisponibilidades(),
+          ]);
+        } else if (activeRole === 'PROFESSOR') {
+          [aulasRes, anunciosRes, turmasRes, dispRes] = await Promise.all([
+            api.getProfessorAulas(),
+            api.getAnuncios(),
+            api.getTurmas(),
+            api.getDisponibilidades(),
+          ]);
+        } else if (activeRole === 'ALUNO') {
+          [aulasRes, anunciosRes, turmasRes, dispRes] = await Promise.all([
+            api.getAlunoAulas(),
+            api.getAnuncios(),
+            Promise.resolve({ success: true, data: [] }),
+            api.getDisponibilidades(),
+          ]);
+        } else if (activeRole === 'DIRECAO') {
+          [aulasRes, anunciosRes, turmasRes, dispRes] = await Promise.all([
+            api.getDirecaoAulas(),
+            api.getAnuncios(),
+            api.getTurmas(),
+            api.getDisponibilidades(),
+          ]);
+        } else {
+          [aulasRes, anunciosRes, turmasRes, dispRes] = await Promise.all([
+            Promise.resolve({ success: true, data: [] }),
+            api.getAnuncios(),
+            Promise.resolve({ success: true, data: [] }),
+            api.getDisponibilidades(),
+          ]);
+        }
 
-        const [aulasRes, anunciosRes, turmasRes, dispRes] = await Promise.all([
-          aulasPromise,
-          api.getAnuncios(),
-          api.getTurmas(),
-          dispPromise,
-        ]);
-
-        if (aulasRes.success)   setAulas(aulasRes.data || []);
-        if (anunciosRes.success) setAnuncios(anunciosRes.data || []);
-        if (turmasRes.success)  setTurmas(turmasRes.data || []);
-        if (dispRes.success)    setDisponibilidades(dispRes.data || []);
-      } catch (error) {
-        console.error('Error fetching data:', error);
+        if (aulasRes?.success) setAulas(aulasRes.data || []);
+        if (anunciosRes?.success) setAnuncios(anunciosRes.data || []);
+        if (turmasRes?.success) setTurmas(turmasRes.data || []);
+        if (dispRes?.success) setDisponibilidades(dispRes.data || []);
+      } catch (err: any) {
+        console.error('Erro ao carregar dados:', err);
+        setError(err.message || 'Erro ao carregar dados');
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
-  }, [user]);
+  }, [user?.id, activeRole]);
 
   if (!user) return null;
+  if (!activeRole) return null;
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -68,8 +95,8 @@ export function Dashboard() {
   const allAulas = getFilteredAulas();
 
   const getFilteredAnuncios = () => {
-    if (user.role === 'DIRECAO') return anuncios;
-    if (user.role === 'ENCARREGADO' || user.role === 'PROFESSOR') {
+    if (activeRole === 'DIRECAO') return anuncios;
+    if (activeRole === 'ENCARREGADO' || activeRole === 'PROFESSOR') {
       return anuncios.filter(a => a.vendedorId === user.id);
     }
     return [];
@@ -133,22 +160,36 @@ export function Dashboard() {
     );
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#f4f9f8] flex items-center justify-center">
+        <div className="text-[#4d7068]">A carregar...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-[#f4f9f8] flex items-center justify-center">
+        <div className="text-red-600">Erro: {error}</div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#f4f9f8] p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
-        {/* Breadcrumb */}
         <div className="mb-4 text-sm text-[#4d7068]">
           <Link to="/" className="hover:text-[#0d6b5e] transition-colors">Home</Link>
           <span className="mx-2">/</span>
           <span className="text-[#0a1a17]">Dashboard</span>
         </div>
 
-        {/* Saudação */}
         <div className="mb-8 flex items-start justify-between gap-4">
           <h1 className="text-3xl md:text-4xl text-[#0a1a17] mb-2">
             {getGreeting()}, <span className="text-[#0d6b5e]">{user.nome.split(' ')[0]}</span>!
           </h1>
-          {(user.role === 'PROFESSOR' || user.role === 'DIRECAO') && (
+          {(activeRole === 'PROFESSOR' || activeRole === 'DIRECAO') && (
             <button
               onClick={() => setShowPrintModal(true)}
               className="flex items-center gap-2 px-4 py-2.5 bg-white border border-[#0d6b5e]/20 text-[#0d6b5e] rounded-xl hover:bg-[#e2f0ed] hover:border-[#0d6b5e]/40 transition-all shadow-sm shrink-0 text-sm"
@@ -158,10 +199,10 @@ export function Dashboard() {
               <span className="hidden sm:inline">Imprimir Aulas Realizadas</span>
               <span className="sm:hidden">Imprimir</span>
             </button>
-)}
+          )}
         </div>
 
-        {user.role === 'PROFESSOR' && disponibilidades.length > 0 && (
+        {activeRole === 'PROFESSOR' && (
           <div className="bg-white rounded-2xl shadow-sm p-6 mb-8 border border-[#0d6b5e]/10">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl text-[#0a1a17]">As Minhas Disponibilidades</h2>
@@ -171,30 +212,34 @@ export function Dashboard() {
                 Gerir <ChevronRight className="w-4 h-4" />
               </Link>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {disponibilidades.slice(0, 6).map(d => (
-                <div key={d.id} className="p-4 rounded-xl border border-[#0d6b5e]/10 bg-[#f4f9f8]">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-8 h-8 bg-[#0d6b5e] rounded-lg flex items-center justify-center">
-                      <Clock className="w-4 h-4 text-white" />
-                    </div>
-                    <div>
-                      <div className="text-sm font-medium text-[#0a1a17]">
-                        {d.data ? new Date(d.data + 'T12:00:00').toLocaleDateString('pt-PT', { weekday: 'short', day: 'numeric', month: 'short' }) : '—'}
+            {disponibilidades.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {disponibilidades.slice(0, 6).map(d => (
+                  <div key={d.id} className="p-4 rounded-xl border border-[#0d6b5e]/10 bg-[#f4f9f8]">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-8 h-8 bg-[#0d6b5e] rounded-lg flex items-center justify-center">
+                        <Clock className="w-4 h-4 text-white" />
                       </div>
-                      <div className="text-xs text-[#4d7068]">{d.horainicio || d.horaInicio} - {d.horafim || d.horaFim}</div>
+                      <div>
+                        <div className="text-sm font-medium text-[#0a1a17]">
+                          {d.data ? new Date(d.data + 'T12:00:00').toLocaleDateString('pt-PT', { weekday: 'short', day: 'numeric', month: 'short' }) : '—'}
+                        </div>
+                        <div className="text-xs text-[#4d7068]">{d.horainicio || d.horaInicio} - {d.horafim || d.horaFim}</div>
+                      </div>
+                    </div>
+                    <div className="text-xs text-[#4d7068]">
+                      {d.modalidade_nome || d.modalidade || '—'}
                     </div>
                   </div>
-                  <div className="text-xs text-[#4d7068]">
-                    {d.modalidade_nome || d.modalidade || '—'}
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-[#4d7068] text-sm">Nenhuma disponibilidade encontrada</div>
+            )}
           </div>
         )}
 
-        {(user.role === 'ALUNO' || user.role === 'ENCARREGADO') && disponibilidades.length > 0 && (
+        {(activeRole === 'ALUNO' || activeRole === 'ENCARREGADO') && (
           <div className="bg-white rounded-2xl shadow-sm p-6 mb-8 border border-[#0d6b5e]/10">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl text-[#0a1a17]">Disponibilidades dos Professores</h2>
@@ -204,138 +249,142 @@ export function Dashboard() {
                 Ver todas <ChevronRight className="w-4 h-4" />
               </Link>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {disponibilidades.slice(0, 6).map(d => (
-                <div key={d.id} className="p-4 rounded-xl border border-[#0d6b5e]/10 bg-[#f4f9f8]">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-8 h-8 bg-[#0d6b5e] rounded-lg flex items-center justify-center">
-                      <Clock className="w-4 h-4 text-white" />
+            {disponibilidades.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {disponibilidades.slice(0, 6).map(d => (
+                  <div key={d.id} className="p-4 rounded-xl border border-[#0d6b5e]/10 bg-[#f4f9f8]">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-8 h-8 bg-[#0d6b5e] rounded-lg flex items-center justify-center">
+                        <Clock className="w-4 h-4 text-white" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium text-[#0a1a17]">{d.professorNome || 'Professor'}</div>
+                        <div className="text-xs text-[#4d7068]">{d.data}</div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="text-sm font-medium text-[#0a1a17]">{d.professorNome || 'Professor'}</div>
-                      <div className="text-xs text-[#4d7068]">{d.data}</div>
+                    <div className="text-xs text-[#4d7068]">
+                      {d.horaInicio} - {d.horaFim} • {d.modalidade}
                     </div>
                   </div>
-                  <div className="text-xs text-[#4d7068]">
-                    {d.horaInicio} - {d.horaFim} • {d.modalidade}
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-[#4d7068] text-sm">Nenhuma disponibilidade encontrada</div>
+            )}
           </div>
         )}
 
-        {/* ── Estatísticas de aulas ───────────────────────────────────────── */}
-        {allAulas.length > 0 && (
-          <div className="mb-8">
-            <AulasStatistics aulas={allAulas} />
-          </div>
-        )}
+        <div className="mb-8">
+          <AulasStatistics aulas={allAulas} />
+        </div>
 
-        {/* ── Histórico de aulas ───────────────────────────────────────────── */}
         <div className="bg-white rounded-2xl shadow-sm p-6 border border-[#0d6b5e]/10">
           <h2 className="text-xl text-[#0a1a17] mb-4">
-            {user.role === 'PROFESSOR' ? 'As Minhas Aulas' : 'Aulas Recentes'}
+            {activeRole === 'PROFESSOR' ? 'As Minhas Aulas' : 'Aulas Recentes'}
           </h2>
 
-          {/* Tabela Desktop */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-[#0d6b5e]/10 text-left">
-                  <th className="pb-3 text-sm text-[#4d7068]">Data / Hora</th>
-                  <th className="pb-3 text-sm text-[#4d7068]">
-                    {user.role === 'PROFESSOR' ? 'Aluno' : (user.role === 'DIRECAO' ? 'Aluno / Professor' : 'Professor')}
-                  </th>
-                  <th className="pb-3 text-sm text-[#4d7068]">Sala</th>
-                  <th className="pb-3 text-sm text-[#4d7068]">Modalidade</th>
-                  <th className="pb-3 text-sm text-[#4d7068]">Estado</th>
-                  <th className="pb-3 text-sm text-[#4d7068]"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedAulas.map(aula => (
-                  <tr key={aula.id} className="border-b border-[#0d6b5e]/5 hover:bg-[#f4f9f8] transition-colors">
-                    <td className="py-4">
-                      <div className="text-sm text-[#0a1a17]">{formatDate(aula.data)}</div>
-                      <div className="text-sm text-[#4d7068]">{aula.horaInicio} – {aula.horaFim || aula.horaInicio}</div>
-                      <div className="text-xs text-[#4d7068]">{aula.duracao ? `${aula.duracao} min` : '—'}</div>
-                    </td>
-                    <td className="py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-[#e2f0ed] rounded-full flex items-center justify-center">
-                          <Users className="w-4 h-4 text-[#0d6b5e]" />
-                        </div>
-                        <span className="text-sm text-[#0a1a17]">
-                          {user.role === 'PROFESSOR' ? aula.alunoNome : (user.role === 'DIRECAO' && aula.alunoNome ? aula.alunoNome : aula.professorNome)}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="py-4 text-sm text-[#0a1a17]">{aula.estudioNome}</td>
-                    <td className="py-4 text-xs text-[#4d7068]">{aula.modalidade || '—'}</td>
-                    <td className="py-4">{getStatusBadge(aula.status)}</td>
-                    <td className="py-4">
-                      <button className="text-[#0d6b5e]/30 hover:text-[#0d6b5e] transition-colors">
-                        <ChevronRight className="w-5 h-5" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Cards Mobile */}
-          <div className="md:hidden space-y-4">
-            {paginatedAulas.map(aula => (
-              <div key={aula.id} className="p-4 border border-[#0d6b5e]/10 rounded-xl">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="text-sm text-[#0a1a17]">{formatDate(aula.data)}</div>
-                  {getStatusBadge(aula.status)}
-                </div>
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 bg-[#e2f0ed] rounded-full flex items-center justify-center">
-                    <Users className="w-5 h-5 text-[#0d6b5e]" />
-                  </div>
-                  <div>
-                    <div className="text-sm text-[#0a1a17]">
-                      {user.role === 'PROFESSOR' ? aula.alunoNome : aula.professorNome}
-                    </div>
-                    <div className="text-sm text-[#4d7068]">{aula.estudioNome}</div>
-                  </div>
-                </div>
-                <div className="text-sm text-[#4d7068]">{aula.horaInicio} – {aula.horaFim}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* Paginação */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-6 pt-6 border-t border-[#0d6b5e]/10">
-              <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="px-4 py-2 text-sm text-[#4d7068] hover:text-[#0d6b5e] disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-                Anterior
-              </button>
-              <div className="flex items-center gap-2">
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                  <button key={page} onClick={() => setCurrentPage(page)}
-                    className={`w-8 h-8 rounded-lg text-sm transition-colors ${currentPage === page ? 'bg-[#0d6b5e] text-white' : 'text-[#4d7068] hover:bg-[#e2f0ed]'}`}>
-                    {page}
-                  </button>
-                ))}
-              </div>
-              <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-                className="px-4 py-2 text-sm text-[#4d7068] hover:text-[#0d6b5e] disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-                Próxima
-              </button>
+          {allAulas.length === 0 ? (
+            <div className="text-[#4d7068] text-sm py-8 text-center">
+              Nenhuma aula encontrada
             </div>
+          ) : (
+            <>
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-[#0d6b5e]/10 text-left">
+                        <th className="pb-3 text-sm text-[#4d7068]">Data / Hora</th>
+                        <th className="pb-3 text-sm text-[#4d7068]">
+                          {activeRole === 'PROFESSOR' ? 'Aluno' : (activeRole === 'DIRECAO' ? 'Aluno / Professor' : 'Professor')}
+                        </th>
+                        <th className="pb-3 text-sm text-[#4d7068]">Sala</th>
+                        <th className="pb-3 text-sm text-[#4d7068]">Modalidade</th>
+                        <th className="pb-3 text-sm text-[#4d7068]">Estado</th>
+                        <th className="pb-3 text-sm text-[#4d7068]"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedAulas.map(aula => (
+                      <tr key={aula.id} className="border-b border-[#0d6b5e]/5 hover:bg-[#f4f9f8] transition-colors">
+                        <td className="py-4">
+                          <div className="text-sm text-[#0a1a17]">{formatDate(aula.data)}</div>
+                          <div className="text-sm text-[#4d7068]">{aula.horaInicio} – {aula.horaFim || aula.horaInicio}</div>
+                          <div className="text-xs text-[#4d7068]">{aula.duracao ? `${aula.duracao} min` : '—'}</div>
+                        </td>
+                        <td className="py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-[#e2f0ed] rounded-full flex items-center justify-center">
+                              <Users className="w-4 h-4 text-[#0d6b5e]" />
+                            </div>
+                            <span className="text-sm text-[#0a1a17]">
+                              {activeRole === 'PROFESSOR' ? aula.alunoNome : (activeRole === 'DIRECAO' && aula.alunoNome ? aula.alunoNome : aula.professorNome)}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-4 text-sm text-[#0a1a17]">{aula.estudioNome}</td>
+                        <td className="py-4 text-xs text-[#4d7068]">{aula.modalidade || '—'}</td>
+                        <td className="py-4">{getStatusBadge(aula.status)}</td>
+                        <td className="py-4">
+                          <button className="text-[#0d6b5e]/30 hover:text-[#0d6b5e] transition-colors">
+                            <ChevronRight className="w-5 h-5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="md:hidden space-y-4">
+                {paginatedAulas.map(aula => (
+                  <div key={aula.id} className="p-4 border border-[#0d6b5e]/10 rounded-xl">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="text-sm text-[#0a1a17]">{formatDate(aula.data)}</div>
+                      {getStatusBadge(aula.status)}
+                    </div>
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-10 h-10 bg-[#e2f0ed] rounded-full flex items-center justify-center">
+                        <Users className="w-5 h-5 text-[#0d6b5e]" />
+                      </div>
+                      <div>
+                        <div className="text-sm text-[#0a1a17]">
+                          {activeRole === 'PROFESSOR' ? aula.alunoNome : aula.professorNome}
+                        </div>
+                        <div className="text-sm text-[#4d7068]">{aula.estudioNome}</div>
+                      </div>
+                    </div>
+                    <div className="text-sm text-[#4d7068]">{aula.horaInicio} – {aula.horaFim}</div>
+                  </div>
+                ))}
+              </div>
+
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between mt-6 pt-6 border-t border-[#0d6b5e]/10">
+                  <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="px-4 py-2 text-sm text-[#4d7068] hover:text-[#0d6b5e] disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                    Anterior
+                  </button>
+                  <div className="flex items-center gap-2">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                      <button key={page} onClick={() => setCurrentPage(page)}
+                        className={`w-8 h-8 rounded-lg text-sm transition-colors ${currentPage === page ? 'bg-[#0d6b5e] text-white' : 'text-[#4d7068] hover:bg-[#e2f0ed]'}`}>
+                        {page}
+                      </button>
+                    ))}
+                  </div>
+                  <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-4 py-2 text-sm text-[#4d7068] hover:text-[#0d6b5e] disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                    Próxima
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
 
-      {/* Modal de impressão */}
       {showPrintModal && (
         <PrintAulasModal
           currentUser={user}

@@ -19,7 +19,7 @@ const normalizeEstadoTipo = (tipoestado: string | undefined): string => {
 };
 
 export function Marketplace() {
-  const { user } = useAuth();
+  const { user, activeRole } = useAuth();
   const [searchParams] = useSearchParams();
   const [anuncios, setAnuncios] = useState<AnuncioMarketplace[]>([]);
   const [reservas, setReservas] = useState<any[]>([]);
@@ -100,7 +100,7 @@ export function Marketplace() {
 
   const fetchReservas = async () => {
     try {
-      if (user?.role === 'DIRECAO') {
+      if (activeRole === 'DIRECAO') {
         const result = await api.getAluguerTransacoes();
         if (result.success && result.data) setReservas(result.data.map(mapReserva));
       } else {
@@ -122,7 +122,7 @@ export function Marketplace() {
 
         await fetchReservas();
 
-        if (user?.role === 'DIRECAO' || user?.role === 'ENCARREGADO' || user?.role === 'PROFESSOR') {
+        if (activeRole === 'DIRECAO' || activeRole === 'ENCARREGADO' || activeRole === 'PROFESSOR') {
           const [figurinosResult, lookupResult] = await Promise.all([
             api.getFigurinos(),
             api.getFigurinoLookup(),
@@ -145,7 +145,23 @@ export function Marketplace() {
       }
     };
     fetchData();
-  }, [user?.role]);
+  }, [user, activeRole]);
+
+  // Auto-refresh de anúncios a cada 30s
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const result = await api.getAnuncios();
+        if (result.success && result.data) {
+          setAnuncios(result.data);
+        }
+      } catch (error) {
+        console.error('Polling error:', error);
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   if (!user) return null;
 
@@ -157,7 +173,7 @@ export function Marketplace() {
       return;
     }
     try {
-      await api.createAnuncio({
+      await api.registarAnuncio({
         figurinoidfigurino: parseInt(figurinoId),
         ...(valor && { valor: parseFloat(valor) }),
         dataanuncio,
@@ -176,19 +192,19 @@ export function Marketplace() {
   const getAnunciosFiltrados = () => {
     let anunciosFiltrados = [...anuncios];
 
-    if (user.role === 'ENCARREGADO') {
+    if (activeRole === 'ENCARREGADO') {
       anunciosFiltrados = anunciosFiltrados.filter(a => a.vendedorId === user.id || a.status === 'APROVADO');
     }
 
-    if (user.role === 'PROFESSOR') {
+    if (activeRole === 'PROFESSOR') {
       anunciosFiltrados = anunciosFiltrados.filter(a => a.vendedorId === user.id || a.status === 'APROVADO');
     }
 
-    if (user.role === 'ALUNO') {
+    if (activeRole === 'ALUNO') {
       anunciosFiltrados = anunciosFiltrados.filter(a => a.status === 'APROVADO');
     }
 
-    if (filtroMeus && user.role !== 'DIRECAO') {
+    if (filtroMeus && activeRole !== 'DIRECAO') {
       anunciosFiltrados = anunciosFiltrados.filter(a => a.vendedorId === user.id);
     }
 
@@ -280,7 +296,7 @@ export function Marketplace() {
         return;
       }
 
-      await api.createAnuncio({
+      await api.registarAnuncio({
         figurinoidfigurino: figurinoIdFinal,
         valor: valor ? parseFloat(valor) : undefined,
         dataanuncio: new Date().toISOString().split('T')[0],
@@ -357,7 +373,7 @@ export function Marketplace() {
         return;
       }
 
-      await api.createAnuncio({
+      await api.registarAnuncio({
         figurinoidfigurino: figurinoIdFinal,
         valor: valor ? parseFloat(valor) : undefined,
         dataanuncio: new Date().toISOString().split('T')[0],
@@ -383,7 +399,7 @@ export function Marketplace() {
 
   const handleAprovar = async (anunciosId: string) => {
     try {
-      await api.approveAnuncio(parseInt(anunciosId));
+      await api.avaliarAnuncio(parseInt(anunciosId), 'aprovar');
       setAnuncios(anuncios.map(a => a.id === anunciosId ? { ...a, status: 'APROVADO' as AnuncioStatus } : a));
       toast.success('Anúncio aprovado com sucesso!');
     } catch (error) {
@@ -393,7 +409,7 @@ export function Marketplace() {
 
   const handleRejeitar = async (anunciosId: string, motivo: string) => {
     try {
-      const res = await api.rejectAnuncio(parseInt(anunciosId), motivo || undefined);
+      const res = await api.avaliarAnuncio(parseInt(anunciosId), 'rejeitar', motivo || undefined);
       if (res.success) {
         setAnuncios(anuncios.map(a => a.id === anunciosId
           ? { ...a, status: 'REJEITADO' as AnuncioStatus, motivoRejeicao: motivo || null }
@@ -477,17 +493,17 @@ export function Marketplace() {
     }
 
     try {
-      const reservaPayload: Parameters<typeof api.criarReserva>[0] = {
+      const reservaPayload: Parameters<typeof api.registarTransacao>[0] = {
         quantidade: parseInt(reservaData.quantidade) || 1,
         datatransacao: reservaData.dataInicio,
         anuncioidanuncio: parseInt(anunciosId),
       };
-      if (user.role === 'ENCARREGADO') {
+      if (activeRole === 'ENCARREGADO') {
         reservaPayload.encarregadoeducacaoutilizadoriduser = parseInt(user.id);
-      } else if (user.role === 'PROFESSOR') {
+      } else if (activeRole === 'PROFESSOR') {
         reservaPayload.professorutilizadoriduser = parseInt(user.id);
       }
-      await api.criarReserva(reservaPayload);
+      await api.registarTransacao(reservaPayload);
       await fetchReservas();
       const res = await api.getAnuncios();
       if (res.success && res.data) setAnuncios(res.data);
@@ -504,7 +520,7 @@ export function Marketplace() {
       const estadosResult = await api.getAluguerEstados();
       const estadoAprovado = estadosResult.data?.find((e: any) => e.tipoestado?.toLowerCase().startsWith('aprovado'));
       if (estadoAprovado) {
-        await api.atualizarReservaEstado(parseInt(reservaId), estadoAprovado.idestado);
+        await api.avaliarPedidoReserva(parseInt(reservaId), 'aprovar', estadoAprovado.idestado);
       }
       
       setReservas(reservas.map(r => r.id === reservaId ? { ...r, status: 'APROVADA' } : r));
@@ -526,7 +542,7 @@ export function Marketplace() {
       const estadosResult = await api.getAluguerEstados();
       const estadoRejeitado = estadosResult.data?.find((e: any) => e.tipoestado?.toLowerCase().startsWith('rejeitado'));
       if (estadoRejeitado) {
-        await api.atualizarReservaEstado(parseInt(id), estadoRejeitado.idestado, rejeitarReservaMotivoInput || undefined);
+        await api.avaliarPedidoReserva(parseInt(id), 'rejeitar', estadoRejeitado.idestado, rejeitarReservaMotivoInput || undefined);
       }
       setReservas(reservas.map(r => r.id === id ? { ...r, status: 'REJEITADA', motivoRejeicao: rejeitarReservaMotivoInput || null } : r));
       toast.info('Reserva rejeitada.');
@@ -559,15 +575,15 @@ export function Marketplace() {
             <div>
               <h1 className="text-3xl text-white mb-1">Marketplace</h1>
               <p className="text-white/50 text-sm">
-                {user.role === 'ENCARREGADO' && 'Compre e venda artigos de dança'}
-                {user.role === 'DIRECAO' && 'Modere os anúncios e crie alugueres da escola'}
-                {user.role === 'PROFESSOR' && 'Crie anúncios e consulte os artigos disponíveis'}
-                {user.role === 'ALUNO' && 'Consulta os artigos disponíveis'}
+                {activeRole === 'ENCARREGADO' && 'Compre e venda artigos de dança'}
+                {activeRole === 'DIRECAO' && 'Modere os anúncios e crie alugueres da escola'}
+                {activeRole === 'PROFESSOR' && 'Crie anúncios e consulte os artigos disponíveis'}
+                {activeRole === 'ALUNO' && 'Consulta os artigos disponíveis'}
               </p>
             </div>
 
             <div className="flex items-center gap-3">
-              {user.role === 'DIRECAO' && reservasPendentes.length > 0 && (
+              {activeRole === 'DIRECAO' && reservasPendentes.length > 0 && (
                 <button
                   onClick={() => setViewMode(viewMode === 'anuncios' ? 'reservas' : 'anuncios')}
                   className="flex items-center gap-2 bg-orange-600 text-white px-5 py-2.5 rounded-lg hover:bg-orange-700 transition-colors relative"
@@ -580,7 +596,7 @@ export function Marketplace() {
                   </span>
                 </button>
               )}
-              {(user.role === 'ENCARREGADO' || user.role === 'PROFESSOR') && reservas.length > 0 && (
+              {(activeRole === 'ENCARREGADO' || activeRole === 'PROFESSOR') && reservas.length > 0 && (
                 <button
                   onClick={() => setViewMode(viewMode === 'anuncios' ? 'reservas' : 'anuncios')}
                   className="flex items-center gap-2 bg-orange-600 text-white px-5 py-2.5 rounded-lg hover:bg-orange-700 transition-colors relative"
@@ -596,14 +612,14 @@ export function Marketplace() {
                 </button>
               )}
 
-              {(user.role === 'ENCARREGADO' || user.role === 'PROFESSOR' || user.role === 'DIRECAO') && (
+              {(activeRole === 'ENCARREGADO' || activeRole === 'PROFESSOR' || activeRole === 'DIRECAO') && (
                 <button
                   onClick={() => setShowNovoForm(!showNovoForm)}
                   className="flex items-center gap-2 bg-[#c9a84c] text-[#0a1a17] px-5 py-2.5 rounded-lg hover:bg-[#e8c97a] transition-colors"
                   style={{ fontWeight: 600 }}
                 >
                   <Plus className="w-5 h-5" />
-                  {user.role === 'DIRECAO' ? 'Novo Aluguer' : 'Novo Anúncio'}
+                  {activeRole === 'DIRECAO' ? 'Novo Aluguer' : 'Novo Anúncio'}
                 </button>
               )}
             </div>
@@ -661,7 +677,7 @@ export function Marketplace() {
                 </select>
               </div>
 
-              {user.role !== 'DIRECAO' && user.role !== 'ALUNO' && (
+              {activeRole !== 'DIRECAO' && activeRole !== 'ALUNO' && (
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => setFiltroMeus(!filtroMeus)}
@@ -680,7 +696,7 @@ export function Marketplace() {
         </div>
       </div>
 
-      {showNovoForm && user.role === 'ENCARREGADO' && (
+      {showNovoForm && activeRole === 'ENCARREGADO' && (
         <div className="max-w-7xl mx-auto px-4 py-6">
           <div className="bg-white p-6 rounded-2xl shadow-md border border-[#0d6b5e]/10">
             <h2 className="text-xl mb-5 text-[#0a1a17]" style={{ fontWeight: 600 }}>Criar Novo Anúncio</h2>
@@ -866,7 +882,7 @@ export function Marketplace() {
         </div>
       )}
 
-      {showNovoForm && user.role === 'PROFESSOR' && (
+      {showNovoForm && activeRole === 'PROFESSOR' && (
         <div className="max-w-7xl mx-auto px-4 py-6">
           <div className="bg-white p-6 rounded-2xl shadow-md border border-[#0d6b5e]/10">
             <h2 className="text-xl mb-5 text-[#0a1a17]" style={{ fontWeight: 600 }}>Criar Novo Anúncio</h2>
@@ -1052,7 +1068,7 @@ export function Marketplace() {
         </div>
       )}
 
-      {showNovoForm && user.role === 'DIRECAO' && (
+      {showNovoForm && activeRole === 'DIRECAO' && (
         <div className="max-w-7xl mx-auto px-4 py-6">
           <div className="bg-white p-6 rounded-2xl shadow-md border border-[#0d6b5e]/10">
             <h2 className="text-xl mb-4 text-[#0a1a17]" style={{ fontWeight: 600 }}>Criar Novo Anúncio de Aluguer</h2>
@@ -1114,7 +1130,7 @@ export function Marketplace() {
         <div className="max-w-7xl mx-auto px-4 py-8">
           <div className="bg-white p-6 rounded-2xl shadow-md border border-[#0d6b5e]/10">
             <h2 className="text-2xl mb-6 text-[#0a1a17]">
-              {user.role === 'DIRECAO' ? 'Aprovação de Reservas de Figurinos' : 'Minhas Reservas de Figurinos'}
+              {activeRole === 'DIRECAO' ? 'Aprovação de Reservas de Figurinos' : 'Minhas Reservas de Figurinos'}
             </h2>
             {reservas.length === 0 ? (
               <p className="text-center text-[#4d7068] py-8">Nenhuma reserva encontrada</p>
@@ -1140,14 +1156,14 @@ export function Marketplace() {
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex-1">
                           <h3 className="text-lg text-[#0a1a17] mb-1">{reserva.anunciosTitulo}</h3>
-                          {user.role === 'DIRECAO' && (
+                          {activeRole === 'DIRECAO' && (
                             <p className="text-sm text-[#4d7068]">Solicitado por: <strong>{reserva.usuarioNome}</strong></p>
                           )}
                           <p className="text-sm text-[#4d7068]">Data: {new Date(reserva.dataInicio).toLocaleDateString('pt-PT')}</p>
                           {anuncioRelacionado?.espetaculoNome && (<p className="text-sm text-[#0d6b5e] mt-1">Espetáculo: {anuncioRelacionado.espetaculoNome}</p>)}
                         </div>
                         <div className="flex items-center gap-2">
-                          {user.role === 'DIRECAO' && reserva.status === 'PENDENTE' ? (
+                          {activeRole === 'DIRECAO' && reserva.status === 'PENDENTE' ? (
                             <>
                               <button onClick={() => handleAprovarReserva(reserva.id)} className="flex items-center gap-1 bg-[#0d6b5e] text-white px-3 py-2 rounded-lg hover:bg-[#065147] transition-colors text-sm">
                                 <CheckCircle className="w-4 h-4" />Aprovar
@@ -1195,7 +1211,7 @@ export function Marketplace() {
                         {anuncio.tipoTransacao === 'VENDA' ? (<><ShoppingBag className="w-3 h-3" />Venda</>) : (<><Tag className="w-3 h-3" />Aluguer</>)}
                       </span>
                     </div>
-                    {(user.role === 'DIRECAO' || anuncio.vendedorId === user.id) && anuncio.status === 'PENDENTE' && (
+                    {(activeRole === 'DIRECAO' || anuncio.vendedorId === user.id) && anuncio.status === 'PENDENTE' && (
                       <div className="absolute top-3 right-3">
                         <span className="px-3 py-1 rounded-full text-xs bg-amber-100 text-amber-800 border border-amber-200">Pendente</span>
                       </div>
@@ -1224,17 +1240,17 @@ export function Marketplace() {
                       )}
                     </div>
 
-                    {anuncio.tipoTransacao === 'ALUGUER' && anuncio.status === 'APROVADO' && (user.role === 'ENCARREGADO' || user.role === 'PROFESSOR') && (
+                    {anuncio.tipoTransacao === 'ALUGUER' && anuncio.status === 'APROVADO' && (activeRole === 'ENCARREGADO' || activeRole === 'PROFESSOR') && (
                       <div className="mt-4">
-                        {(anuncio as any).quantidade <= 0 ? (
+                        {(anuncio.quantidade || 0) <= 0 ? (
                           <div className="w-full flex items-center justify-center gap-2 bg-gray-100 text-gray-500 px-4 py-2 rounded-lg text-sm cursor-not-allowed" style={{ fontWeight: 600 }}>
                             Esgotado
                           </div>
                         ) : showReservaForm === anuncio.id ? (
                           <div className="space-y-3 p-3 bg-[#f4f9f8] rounded-lg">
                             <div>
-                              <label className="block text-xs text-[#4d7068] mb-1">Quantidade (disponível: {(anuncio as any).quantidade})</label>
-                              <input type="number" min="1" max={(anuncio as any).quantidade} value={reservaData.quantidade} onChange={e => setReservaData({...reservaData, quantidade: e.target.value})} className="w-full px-3 py-2 text-sm border border-[#0d6b5e]/20 rounded-lg" />
+                              <label className="block text-xs text-[#4d7068] mb-1">Quantidade (disponível: {anuncio.quantidade})</label>
+                              <input type="number" min="1" max={anuncio.quantidade} value={reservaData.quantidade} onChange={e => setReservaData({...reservaData, quantidade: e.target.value})} className="w-full px-3 py-2 text-sm border border-[#0d6b5e]/20 rounded-lg" />
                             </div>
                             <div>
                               <label className="block text-xs text-[#4d7068] mb-1">Data Início</label>
@@ -1257,7 +1273,7 @@ export function Marketplace() {
                       </div>
                     )}
 
-                    {user.role === 'DIRECAO' && anuncio.status === 'PENDENTE' && (
+                    {activeRole === 'DIRECAO' && anuncio.status === 'PENDENTE' && (
                       <div className="mt-4 flex gap-2">
                         <button onClick={() => handleAprovar(anuncio.id)} className="flex-1 flex items-center justify-center gap-1 bg-[#0d6b5e] text-white px-3 py-2 rounded-lg hover:bg-[#065147] transition-colors text-sm">
                           <CheckCircle className="w-4 h-4" />Aprovar
@@ -1268,7 +1284,7 @@ export function Marketplace() {
                       </div>
                     )}
 
-                    {(user.role === 'ENCARREGADO' || user.role === 'PROFESSOR') && anuncio.vendedorId === user.id && anuncio.status === 'PENDENTE' && (
+                    {(activeRole === 'ENCARREGADO' || activeRole === 'PROFESSOR') && anuncio.vendedorId === user.id && anuncio.status === 'PENDENTE' && (
                       <>
                         <div className="mt-3 flex items-center gap-2 text-sm text-amber-700 bg-amber-50 p-3 rounded-lg border border-amber-200">
                           <Clock className="w-4 h-4" /><span>Aguardando aprovação da direção</span>
@@ -1294,7 +1310,7 @@ export function Marketplace() {
                       </>
                     )}
 
-                    {(user.role === 'ENCARREGADO' || user.role === 'PROFESSOR') && anuncio.vendedorId === user.id && anuncio.status === 'REJEITADO' && (
+                    {(activeRole === 'ENCARREGADO' || activeRole === 'PROFESSOR') && anuncio.vendedorId === user.id && anuncio.status === 'REJEITADO' && (
                       <>
                         <div className="mt-3 p-3 bg-red-50 rounded-lg border border-red-200">
                           <div className="flex items-center gap-2 text-sm text-red-700 font-medium mb-1">

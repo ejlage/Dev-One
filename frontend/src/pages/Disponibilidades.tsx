@@ -32,7 +32,7 @@ const HORARIOS = [
 ];
 
 export function Disponibilidades() {
-  const { user } = useAuth();
+  const { user, activeRole } = useAuth();
   const [disponibilidades, setDisponibilidades] = useState<Disponibilidade[]>([]);
   const [modalidades, setModalidades] = useState<Modalidade[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,7 +46,7 @@ export function Disponibilidades() {
   });
 
   useEffect(() => {
-    if (user?.role === 'PROFESSOR') {
+    if (activeRole === 'PROFESSOR') {
       fetchData();
     }
   }, [user]);
@@ -149,7 +149,7 @@ const handleEdit = (disp: Disponibilidade) => {
     } catch { return dateStr; }
   };
 
-  if (!user || user.role !== 'PROFESSOR') {
+  if (!user || activeRole !== 'PROFESSOR') {
     return null;
   }
 

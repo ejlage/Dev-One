@@ -66,3 +66,16 @@ export const getSalaAvailability = async (req, reply) => {
     return reply.status(400).send({ success: false, error: error.message });
   }
 };
+
+export const consultarSalaDisponivel = async (req, reply) => {
+  try {
+    const { salaId, data, hora, duracao } = req.body;
+    if (!salaId || !data || !hora || !duracao) {
+      return reply.status(400).send({ success: false, error: "Campos obrigatórios: salaId, data, hora, duracao" });
+    }
+    const result = await salasService.consultarSalaDisponivel(parseInt(salaId), data, hora, parseInt(duracao));
+    return reply.send({ success: true, data: result });
+  } catch (error) {
+    return reply.status(400).send({ success: false, error: error.message });
+  }
+};
