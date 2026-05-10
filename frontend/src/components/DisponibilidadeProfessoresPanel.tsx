@@ -6,12 +6,16 @@ import { format, addDays, startOfDay } from 'date-fns';
 
 interface DisponibilidadeProfessoresPanelProps {
   aulasExistentes: PedidoAula[];
-  onMarcarSlot: (prefill: {
+  onMarcarSlot?: (prefill: {
     professorId: string;
-    estudioId: string;
+    estudioId?: string;
     data: string;
     horaInicio: string;
     duracao: string;
+    maxDuracao?: string;
+    modalidade?: string;
+    modalidadeId?: string;
+    disponibilidadeId?: string;
   }) => void;
 }
 
@@ -40,19 +44,29 @@ const PROFESSOR_AVATAR_COLORS: Record<string, string> = {
   'prof3': 'bg-teal-600',
 };
 
+const calcularHoraFim = (horaInicio: string, duracaoMin: number): string => {
+  if (!horaInicio) return '';
+  const [h, m] = horaInicio.split(':').map(Number);
+  const totalMin = h * 60 + m + duracaoMin;
+  return `${String(Math.floor(totalMin / 60)).padStart(2, '0')}:${String(totalMin % 60).padStart(2, '0')}`;
+};
+
 export function DisponibilidadeProfessoresPanel({ aulasExistentes, onMarcarSlot }: DisponibilidadeProfessoresPanelProps) {
   const [users, setUsers] = useState<any[]>([]);
   const [professorSlots, setProfessorSlots] = useState<any[]>([]);
   
   useEffect(() => {
     const fetchData = async () => {
-      const [usersRes] = await Promise.all([
-        api.getUsers()
-      ]);
-      if (usersRes.success) setUsers(usersRes.data || []);
-      
-      const slotsRes = await api.getProfessorDisponibilidades();
-      if (slotsRes.success) setProfessorSlots(slotsRes.data || []);
+      try {
+        const [usersRes, slotsRes] = await Promise.all([
+          api.getUsers(),
+          api.getProfessorDisponibilidades()
+        ]);
+        if (usersRes.success) setUsers(usersRes.data || []);
+        if (slotsRes.success) setProfessorSlots(slotsRes.data || []);
+      } catch (err) {
+        console.error('Erro ao carregar dados:', err);
+      }
     };
     fetchData();
   }, []);
@@ -61,34 +75,40 @@ export function DisponibilidadeProfessoresPanel({ aulasExistentes, onMarcarSlot 
   const [professorSelecionado, setProfessorSelecionado] = useState<string>('TODOS');
   const [slotExpandido, setSlotExpandido] = useState<string | null>(null);
 
-  // Calcular próximas datas disponíveis para um slot
-  const getProximasDatas = (slot: SlotDisponibilidade): { data: string; disponivel: boolean }[] => {
+  // Para slots de data específica (disponibilidade_mensal), retorna a própria data se for futura ou de hoje
+  const getProximasDatas = (slot: any): { data: string; disponivel: boolean }[] => {
+    const slotData = slot.data as string | undefined;
+    if (slotData) {
+      const hoje = startOfDay(new Date());
+      const slotDate = startOfDay(new Date(slotData + 'T12:00:00'));
+      // Allow slots from today onwards (not past dates)
+      if (slotDate < hoje) return [];
+      // Check if there are available minutes (maxDuracao > 0)
+      const hasVagas = (slot.maxDuracao ?? 1) > 0;
+      return [{ data: slotData, disponivel: hasVagas }];
+    }
+    // Fallback para slots recorrentes (diaSemana)
     const hoje = startOfDay(new Date());
     const resultados: { data: string; disponivel: boolean }[] = [];
-
     for (let i = 1; i <= 60 && resultados.length < 5; i++) {
       const data = addDays(hoje, i);
-      const jsDia = data.getDay(); // 0=Dom, 1=Seg, ..., 6=Sáb
-
-      if (jsDia === slot.diaSemana) {
+      if (data.getDay() === slot.diaSemana) {
         const dataStr = format(data, 'yyyy-MM-dd');
-
-        // Verificar se há conflito de professor OU estúdio
-        const temConflito = aulasExistentes.some(a =>
-          a.data === dataStr &&
-          (a.status === 'CONFIRMADA' || a.status === 'PENDENTE') &&
-          (a.professorId === slot.professorId || a.estudioId === slot.estudioId) &&
-          (
-            (slot.horaInicio >= a.horaInicio && slot.horaInicio < a.horaFim) ||
-            (slot.horaFim > a.horaInicio && slot.horaFim <= a.horaFim) ||
-            (slot.horaInicio <= a.horaInicio && slot.horaFim >= a.horaFim)
-          )
-        );
-
+        const slotFim = calcularHoraFim(slot.horaInicio, slot.duracao || 60);
+        const temConflito = aulasExistentes.some(a => {
+          if (a.data !== dataStr) return false;
+          if (a.status !== 'CONFIRMADA' && a.status !== 'PENDENTE') return false;
+          if (a.professorId !== slot.professorId && a.estudioId !== slot.estudioId) return false;
+          const aulaFim = a.horaFim || calcularHoraFim(a.horaInicio, a.duracao || 60);
+          return (
+            (slot.horaInicio >= a.horaInicio && slot.horaInicio < aulaFim) ||
+            (slotFim > a.horaInicio && slotFim <= aulaFim) ||
+            (slot.horaInicio <= a.horaInicio && slotFim >= aulaFim)
+          );
+        });
         resultados.push({ data: dataStr, disponivel: !temConflito });
       }
     }
-
     return resultados;
   };
 
@@ -105,13 +125,14 @@ export function DisponibilidadeProfessoresPanel({ aulasExistentes, onMarcarSlot 
     ? professores
     : professores.filter(p => p.id === professorSelecionado);
 
-  // Agrupar slots por dia da semana para um professor
+  // Agrupar slots por data (ou diaSemana para slots recorrentes legacy)
   const getSlotsPorDia = (professorId: string) => {
     const slots = professorSlots.filter(d => d.professorId === professorId);
-    const porDia: Record<number, SlotDisponibilidade[]> = {};
-    slots.forEach(slot => {
-      if (!porDia[slot.diaSemana]) porDia[slot.diaSemana] = [];
-      porDia[slot.diaSemana].push(slot);
+    const porDia: Record<string, any[]> = {};
+    slots.forEach((slot: any) => {
+      const key = slot.data || String(slot.diaSemana);
+      if (!porDia[key]) porDia[key] = [];
+      porDia[key].push(slot);
     });
     return porDia;
   };
@@ -150,10 +171,12 @@ export function DisponibilidadeProfessoresPanel({ aulasExistentes, onMarcarSlot 
             <div className="w-3 h-3 rounded-full bg-red-500/70" />
             Ocupado
           </div>
-          <div className="flex items-center gap-1.5 text-xs text-white/60">
-            <div className="w-3 h-3 rounded-full bg-[#c9a84c]" />
-            Clique para marcar
-          </div>
+          {onMarcarSlot && (
+            <div className="flex items-center gap-1.5 text-xs text-white/60">
+              <div className="w-3 h-3 rounded-full bg-[#c9a84c]" />
+              Clique para marcar
+            </div>
+          )}
         </div>
       </div>
 
@@ -189,7 +212,7 @@ export function DisponibilidadeProfessoresPanel({ aulasExistentes, onMarcarSlot 
       {professoresFiltrados.map(professor => {
         const slotsPorDia = getSlotsPorDia(professor.id);
         const modalidades = getModalidadesProfessor(professor.id);
-        const diasComSlots = Object.keys(slotsPorDia).map(Number).sort();
+        const diasComSlots = Object.keys(slotsPorDia).sort();
 
         return (
           <div key={professor.id} className="bg-white rounded-2xl shadow-sm border border-[#0d6b5e]/10 overflow-hidden">
@@ -216,45 +239,32 @@ export function DisponibilidadeProfessoresPanel({ aulasExistentes, onMarcarSlot 
                     ))}
                   </div>
                 </div>
-                {/* Resumo semanal */}
-                <div className="hidden md:flex items-center gap-1 flex-shrink-0">
-                  {DIAS_SEMANA.map(dia => {
-                    const temSlot = diasComSlots.includes(dia.num);
-                    return (
-                      <div
-                        key={dia.num}
-                        className={`flex flex-col items-center w-9 py-1.5 rounded-lg text-center ${
-                          temSlot
-                            ? 'bg-[#0d6b5e]/10 border border-[#0d6b5e]/20'
-                            : 'bg-gray-50 border border-gray-100'
-                        }`}
-                      >
-                        <span className={`text-xs ${temSlot ? 'text-[#0d6b5e]' : 'text-gray-300'}`} style={{ fontWeight: 600 }}>
-                          {dia.short}
-                        </span>
-                        {temSlot && (
-                          <div className="w-1.5 h-1.5 rounded-full bg-[#0d6b5e] mt-1" />
-                        )}
-                      </div>
-                    );
-                  })}
+                {/* Resumo de datas */}
+                <div className="hidden md:flex items-center gap-2 flex-shrink-0">
+                  <div className="flex flex-col items-center px-4 py-2 rounded-xl bg-[#0d6b5e]/10 border border-[#0d6b5e]/20">
+                    <span className="text-lg text-[#0d6b5e]" style={{ fontWeight: 700 }}>{diasComSlots.length}</span>
+                    <span className="text-xs text-[#4d7068]">datas</span>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Slots por dia */}
+            {/* Slots por data */}
             <div className="divide-y divide-[#0d6b5e]/5">
-              {diasComSlots.map(diaSemana => {
-                const diaInfo = DIAS_SEMANA.find(d => d.num === diaSemana);
-                const slots = slotsPorDia[diaSemana];
+              {diasComSlots.map(dateKey => {
+                const slots = slotsPorDia[dateKey];
+                const isDateKey = dateKey.includes('-');
+                const dateLabel = isDateKey
+                  ? new Date(dateKey + 'T12:00:00').toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+                  : (DIAS_SEMANA.find(d => d.num === Number(dateKey))?.label ?? dateKey);
 
                 return (
-                  <div key={diaSemana} className="px-6 py-4">
-                    {/* Label do dia */}
+                  <div key={dateKey} className="px-6 py-4">
+                    {/* Label da data */}
                     <div className="flex items-center gap-2 mb-3">
                       <div className="w-2 h-2 rounded-full bg-[#c9a84c]" />
                       <span className="text-sm text-[#0a1a17]" style={{ fontWeight: 600 }}>
-                        {diaInfo?.label}
+                        {dateLabel}
                       </span>
                     </div>
 
@@ -283,7 +293,7 @@ export function DisponibilidadeProfessoresPanel({ aulasExistentes, onMarcarSlot 
                                     <span style={{ fontWeight: 600 }}>{slot.horaInicio}</span>
                                     <span className="text-[#4d7068]">–</span>
                                     <span style={{ fontWeight: 600 }}>{slot.horaFim}</span>
-                                    <span className="text-xs text-[#4d7068] ml-1">({slot.duracao} min)</span>
+                                    <span className="text-xs text-[#4d7068] ml-1">({slot.maxDuracao ?? slot.duracao} min disponíveis)</span>
                                   </div>
 
                                   {/* Sala */}
@@ -325,32 +335,39 @@ export function DisponibilidadeProfessoresPanel({ aulasExistentes, onMarcarSlot 
                             {isExpanded && (
                               <div className="px-4 pb-4 bg-[#f4f9f8]/50 border-t border-[#0d6b5e]/10">
                                 <p className="text-xs text-[#4d7068] mt-3 mb-3" style={{ fontWeight: 500 }}>
-                                  Próximas 5 ocorrências:
+                                  Data disponível:
                                 </p>
                                 <div className="flex flex-wrap gap-2">
                                   {proximasDatas.map(({ data, disponivel }) => {
                                     const { dia, mes, diaSemanaShort } = formatDataChip(data);
                                     return (
-                                      <button
-                                        key={data}
-                                        onClick={() => {
-                                          if (disponivel) {
-                                            onMarcarSlot({
-                                              professorId: slot.professorId,
-                                              estudioId: slot.estudioId,
-                                              data: data,
-                                              horaInicio: slot.horaInicio,
-                                              duracao: String(slot.duracao),
-                                            });
-                                          }
-                                        }}
-                                        disabled={!disponivel}
+<button
+                                      key={data}
+                                      onClick={() => {
+                                        if (disponivel && onMarcarSlot) {
+                                          onMarcarSlot({
+                                            professorId: slot.professorId,
+                                            estudioId: slot.estudioId,
+                                            data: data,
+                                            horaInicio: slot.horaInicio.includes('T')
+                                              ? slot.horaInicio.substring(11, 16)
+                                              : String(slot.horaInicio).substring(0, 5),
+                                            duracao: String(slot.maxDuracao > 0 ? slot.maxDuracao : 30),
+                                            maxDuracao: String(slot.maxDuracao),
+                                            modalidade: slot.modalidade,
+                                            disponibilidadeId: slot.id,
+                                          });
+                                        }
+                                      }}
+                                      disabled={!disponivel || slot.maxDuracao <= 0 || !onMarcarSlot}
                                         className={`flex flex-col items-center px-3 py-2 rounded-xl border transition-all ${
-                                          disponivel
+                                          disponivel && onMarcarSlot
                                             ? 'bg-white border-[#0d6b5e]/30 hover:bg-[#0d6b5e] hover:text-white hover:border-[#0d6b5e] group cursor-pointer shadow-sm'
-                                            : 'bg-gray-50 border-gray-200 cursor-not-allowed opacity-60'
+                                            : disponivel
+                                              ? 'bg-white border-[#0d6b5e]/30 shadow-sm cursor-default'
+                                              : 'bg-gray-50 border-gray-200 cursor-not-allowed opacity-60'
                                         }`}
-                                        title={disponivel ? `Marcar aula para ${data}` : 'Data ocupada'}
+                                        title={disponivel && !onMarcarSlot ? `Disponível em ${data}` : disponivel ? `Marcar aula para ${data}` : 'Data ocupada'}
                                       >
                                         <span className={`text-xs mb-0.5 ${disponivel ? 'text-[#4d7068] group-hover:text-white/80' : 'text-gray-400'}`}>
                                           {diaSemanaShort}

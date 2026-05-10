@@ -36,10 +36,14 @@ export default async function direcaoRoutes(fastify) {
         return reply.status(403).send({ success: false, error: "Acesso negado" });
       }
       const { id } = req.params;
-      
-      const result = await direcaoService.approveAula(id);
+      const { salaId } = req.body || {};
+      const result = await direcaoService.approveAula(id, salaId);
       return reply.send({ success: true, data: result });
     } catch (err) {
+      const message = err.message || '';
+      if (message.includes('já') || message.includes('aprovado') || message.includes('confirmado') || message.includes('estado')) {
+        return reply.status(400).send({ success: false, error: message });
+      }
       return reply.status(500).send({ success: false, error: err.message });
     }
   });
@@ -72,6 +76,10 @@ export default async function direcaoRoutes(fastify) {
       const result = await direcaoService.confirmarAulaRealizada(id);
       return reply.send({ success: true, data: result });
     } catch (err) {
+      const message = err.message || '';
+      if (message.includes('passado') || message.includes('futuro') || message.includes('realizar')) {
+        return reply.status(400).send({ success: false, error: message });
+      }
       return reply.status(500).send({ success: false, error: err.message });
     }
   });

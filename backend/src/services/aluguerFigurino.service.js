@@ -31,6 +31,8 @@ export const createTransacao = async (data) => {
   const {
     quantidade,
     datatransacao,
+    datainicio,
+    datafim,
     anuncioidanuncio,
     estadoidestado,
     itemfigurinoiditem,
@@ -40,6 +42,24 @@ export const createTransacao = async (data) => {
 
   if (!encarregadoeducacaoutilizadoriduser && !professorutilizadoriduser) {
     throw new Error("É necessário identificar o requerente (encarregado ou professor)");
+  }
+  
+  const agora = new Date();
+  const dataHojeStr = agora.toISOString().split('T')[0];
+  
+  if (datainicio) {
+    const dataInicioStr = new Date(datainicio).toISOString().split('T')[0];
+    if (dataInicioStr < dataHojeStr) {
+      throw new Error('A data de início não pode ser no passado');
+    }
+  }
+  
+  if (datainicio && datafim) {
+    const dataInicioObj = new Date(datainicio);
+    const dataFimObj = new Date(datafim);
+    if (dataFimObj <= dataInicioObj) {
+      throw new Error('A data de fim deve ser posterior à data de início');
+    }
   }
 
   const anuncio = await prisma.anuncio.findUnique({
@@ -51,15 +71,31 @@ export const createTransacao = async (data) => {
     throw new Error("Anúncio não encontrado");
   }
 
+  const estadosAtivos = await prisma.estado.findMany({
+    where: { tipoestado: { in: ['Pendente', 'Aprovado'], mode: 'insensitive' } },
+  });
+  const estadosAtivosIds = estadosAtivos.map(e => e.idestado);
+
   const totalReservado = await prisma.transacaofigurino.aggregate({
-    where: { anuncioidanuncio: parseInt(anuncioidanuncio) },
+    where: { anuncioidanuncio: parseInt(anuncioidanuncio), estadoidestado: { in: estadosAtivosIds } },
     _sum: { quantidade: true },
   });
 
   const disponivel = anuncio.quantidade - (totalReservado._sum.quantidade || 0);
 
+  if (disponivel <= 0) {
+    throw new Error('Este anúncio não tem unidades disponíveis');
+  }
   if (parseInt(quantidade) > disponivel) {
-    throw new Error(`Apenas ${disponivel} unidades disponíveis`);
+    throw new Error(`Apenas ${disponivel} unidade(s) disponível(is)`);
+  }
+
+  let resolvedEstadoId = estadoidestado ? parseInt(estadoidestado) : null;
+  if (!resolvedEstadoId || isNaN(resolvedEstadoId)) {
+    const pendente = await prisma.estado.findFirst({
+      where: { tipoestado: { equals: 'Pendente', mode: 'insensitive' } },
+    });
+    resolvedEstadoId = pendente?.idestado ?? 21;
   }
 
   const transacao = await prisma.transacaofigurino.create({
@@ -67,8 +103,8 @@ export const createTransacao = async (data) => {
       quantidade: parseInt(quantidade),
       datatransacao: new Date(datatransacao),
       anuncioidanuncio: parseInt(anuncioidanuncio),
-      estadoidestado: parseInt(estadoidestado) || 1,
-      itemfigurinoiditem: parseInt(itemfigurinoiditem),
+      estadoidestado: resolvedEstadoId,
+      itemfigurinoiditem: itemfigurinoiditem ? parseInt(itemfigurinoiditem) : null,
       encarregadoeducacaoutilizadoriduser: encarregadoeducacaoutilizadoriduser
         ? parseInt(encarregadoeducacaoutilizadoriduser)
         : null,
@@ -84,17 +120,26 @@ export const createTransacao = async (data) => {
   return transacao;
 };
 
-export const updateTransacaoStatus = async (id, novoEstadoId, direcaoUserId) => {
+export const updateTransacaoStatus = async (id, novoEstadoId, direcaoUserId, motivorejeicao) => {
   const transacao = await prisma.transacaofigurino.update({
     where: { idtransacao: parseInt(id) },
     data: {
       estadoidestado: parseInt(novoEstadoId),
       ...(direcaoUserId && { direcaoutilizadoriduser: parseInt(direcaoUserId) }),
+      ...(motivorejeicao !== undefined && { motivorejeicao: motivorejeicao || null }),
     },
-    include: transacaoInclude,
+    include: { ...transacaoInclude, estado: true },
   });
 
   await criarNotificacaoStatus(transacao);
+
+  const novoEstadoStr = (transacao.estado?.tipoestado || '').toLowerCase();
+  if (novoEstadoStr === 'aprovado') {
+    await prisma.anuncio.update({
+      where: { idanuncio: transacao.anuncioidanuncio },
+      data: { quantidade: { decrement: transacao.quantidade } },
+    });
+  }
 
   return transacao;
 };
@@ -115,10 +160,15 @@ export const getDisponibilidadeFigurino = async (anuncioId) => {
     throw new Error("Anúncio não encontrado");
   }
   
+  const estadosAtivos = await prisma.estado.findMany({
+    where: { tipoestado: { in: ['Pendente', 'Aprovado'], mode: 'insensitive' } },
+  });
+  const estadoIdsAtivos = estadosAtivos.map(e => e.idestado);
+
   const totalReservado = await prisma.transacaofigurino.aggregate({
-    where: { 
+    where: {
       anuncioidanuncio: parseInt(anuncioId),
-      estadoidestado: { in: [1, 2] }
+      estadoidestado: { in: estadoIdsAtivos },
     },
     _sum: { quantidade: true }
   });
@@ -178,7 +228,7 @@ async function criarNotificacaoStatus(transacao) {
 export const getEstados = async () => {
   return prisma.estado.findMany({
     where: {
-      tipoestado: { in: ["PENDENTE", "APROVADO", "REJEITADO", "CONCLUIDO", "CANCELADO"] }
+      tipoestado: { in: ["Pendente", "Aprovado", "Rejeitado", "Concluído", "Cancelado"], mode: 'insensitive' }
     }
   });
 };

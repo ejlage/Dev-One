@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Link } from 'react-router';
-import api from '../services/api';
 import { Turma, TurmaStatus, NivelTurma, AlunoInscrito } from '../types';
+import api from '../services/api';
 import {
   ArrowLeft, Plus, Users, Clock, MapPin, Calendar, ChevronDown,
   ChevronUp, Eye, BookOpen, Pencil,
@@ -29,7 +29,7 @@ const CORES_PALETA = [
   { hex: '#e879f9', label: 'Fúcsia' },
 ];
 
-const MODALIDADES = ['Ballet', 'Ballet Clássico', 'Hip-Hop', 'Jazz', 'Contemporâneo', 'Dança Urbana', 'Teatro Dança', 'Outra'];
+// Modalidades are loaded from API — see useEffect in TurmasPage
 const NIVEIS: NivelTurma[] = ['Iniciante', 'Intermédio', 'Avançado', 'Todos os níveis'];
 const DIAS = ['', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
@@ -110,9 +110,10 @@ function TurmaCardPreview({ t }: { t: Partial<Turma> }) {
 
 // ── Card gestão (professor / direção) ──────────────────────────────────────
 function TurmaGerirCard({
-  turma, onToggleStatus, onArchive, onEdit, onRemoveAluno, onInscreverAluno,
+  turma, todosAlunos, onToggleStatus, onArchive, onEdit, onRemoveAluno, onInscreverAluno,
 }: {
   turma: Turma;
+  todosAlunos: { id: string; nome: string }[];
   onToggleStatus: (id: string) => void;
   onArchive: (id: string) => void;
   onEdit: (t: Turma) => void;
@@ -122,12 +123,14 @@ function TurmaGerirCard({
   const [expanded, setExpanded] = useState(false);
   const [showInscrever, setShowInscrever] = useState(false);
   const [alunoSel, setAlunoSel] = useState('');
-  const livres = turma.status === 'FECHADA' ? 0 : turma.lotacaoMaxima || 0 - turma.alunosInscritos?.length || 0;
-  const pct    = turma.lotacaoMaxima || 0 > 0 ? (turma.alunosInscritos?.length || 0 / turma.lotacaoMaxima || 0) * 100 : 0;
-  const dias   = (turma.diasSemana || []).map(d => DIAS[d]).join(' / ');
+  const inscritos = turma.alunosInscritos?.length ?? 0;
+  const cap       = turma.lotacaoMaxima ?? 0;
+  const livres    = turma.status === 'FECHADA' ? 0 : Math.max(0, cap - inscritos);
+  const pct       = cap > 0 ? (inscritos / cap) * 100 : 0;
+  const dias      = (turma.diasSemana || []).map(d => DIAS[d]).join(' / ');
 
-  const inscritosIds     = (turma.alunosInscritos || []).map(a => a.alunoId);
-  const alunosDisponiveis = users.filter(u => u.role === 'ALUNO' && !inscritosIds.includes(u.id));
+  const inscritosIds      = (turma.alunosInscritos || []).map(a => a.alunoId);
+  const alunosDisponiveis = todosAlunos.filter(u => !inscritosIds.includes(u.id));
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-[#0d6b5e]/5 overflow-hidden hover:shadow-md transition-shadow">
@@ -221,8 +224,8 @@ function TurmaGerirCard({
             <p className="text-sm text-[#0a1a17] mb-2" style={{ fontWeight: 600 }}>Selecione o aluno a inscrever:</p>
             <div className="flex gap-2 flex-wrap">
               <select value={alunoSel} onChange={e => setAlunoSel(e.target.value)}
-                className="flex-1 px-3 py-2 border border-[#0d6b5e]/20 rounded-lg bg-white text-sm focus:outline-none focus:border-[#0d6b5e] text-[#0a1a17]">
-                <option value="">Escolher aluno</option>
+                className="flex-1 px-3 py-2 border border-[#0d6b5e]/20 rounded-lg bg-white text-sm focus:outline-none focus:border-[#0d6b5e]">
+                <option value="">Escolher aluno���</option>
                 {(alunosDisponiveis || []).map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
               </select>
               <button
@@ -266,20 +269,23 @@ function TurmaGerirCard({
 
 // ── Card para encarregado ──────────────────────────────────────────────────
 function TurmaEncarregadoCard({
-  turma, meusAlunosIds, onInscrever,
+  turma, meusAlunosIds, todosUsuarios, onInscrever,
 }: {
   turma: Turma;
   meusAlunosIds: string[];
+  todosUsuarios: { id: string; nome: string }[];
   onInscrever: (turmaId: string, alunoId: string) => void;
 }) {
   const [showForm, setShowForm] = useState(false);
   const [alunoSel, setAlunoSel] = useState('');
-  const livres = turma.status === 'FECHADA' ? 0 : turma.lotacaoMaxima || 0 - turma.alunosInscritos?.length || 0;
-  const pct    = turma.lotacaoMaxima || 0 > 0 ? (turma.alunosInscritos?.length || 0 / turma.lotacaoMaxima || 0) * 100 : 0;
-const dias   = (turma.diasSemana || []).map(d => DIAS[d]).join(' / ');
-  const inscritosIds     = (turma.alunosInscritos || []).map(a => a.alunoId);
-  const disponiveis  = users.filter(u => meusAlunosIds.includes(u.id) && !inscritosIds.includes(u.id));
-  const jaInscritos  = users.filter(u => meusAlunosIds.includes(u.id) && inscritosIds.includes(u.id));
+  const inscritos = turma.alunosInscritos?.length ?? 0;
+  const cap       = turma.lotacaoMaxima ?? 0;
+  const livres    = turma.status === 'FECHADA' ? 0 : Math.max(0, cap - inscritos);
+  const pct       = cap > 0 ? (inscritos / cap) * 100 : 0;
+  const dias       = (turma.diasSemana || []).map(d => DIAS[d]).join(' / ');
+  const inscritosIds = (turma.alunosInscritos || []).map(a => a.alunoId);
+  const disponiveis  = todosUsuarios.filter(u => meusAlunosIds.includes(u.id) && !inscritosIds.includes(u.id));
+  const jaInscritos  = todosUsuarios.filter(u => meusAlunosIds.includes(u.id) && inscritosIds.includes(u.id));
 
   return (
     <div className="bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow overflow-hidden border border-black/5">
@@ -361,7 +367,7 @@ const dias   = (turma.diasSemana || []).map(d => DIAS[d]).join(' / ');
                 <p className="text-sm text-[#0a1a17] mb-2" style={{ fontWeight: 600 }}>Selecione o aluno:</p>
                 <div className="flex gap-2 flex-wrap">
                   <select value={alunoSel} onChange={e => setAlunoSel(e.target.value)}
-                    className="flex-1 px-3 py-2 border border-[#0d6b5e]/20 rounded-lg bg-white text-sm focus:outline-none focus:border-[#0d6b5e] text-[#0a1a17]">
+                    className="flex-1 px-3 py-2 border border-[#0d6b5e]/20 rounded-lg bg-white text-sm focus:outline-none focus:border-[#0d6b5e]">
                     <option value="">Escolher…</option>
                     {(disponiveis || []).map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
                   </select>
@@ -402,10 +408,12 @@ const FORM_VAZIO = {
 };
 
 function NovaTurmaForm({
-  user, onSave, onCancel, editando,
+  user, salas, modalidades, onSave, onCancel, editando,
 }: {
   user: { id: string; nome: string };
-  onSave: (t: Turma) => void;
+  salas: { id: string; nome: string; capacidade: number }[];
+  modalidades: string[];
+  onSave: () => void;
   onCancel: () => void;
   editando: Turma | null;
 }) {
@@ -418,7 +426,7 @@ function NovaTurmaForm({
     status: editando.status, cor: editando.cor, requisitos: editando.requisitos ?? '',
   } : { ...FORM_VAZIO });
 
-  const estudio  = estudios.find(e => e.id === form.estudioId);
+  const estudio  = salas.find(e => e.id === form.estudioId);
   const horaFim  = calcHoraFim(form.horaInicio, form.duracao);
 
   const toggleDia = (d: number) =>
@@ -429,33 +437,50 @@ function NovaTurmaForm({
         : [...f.diasSemana, d].sort(),
     }));
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!form.nome || !form.modalidade || !form.descricao || !form.estudioId || !form.horaInicio || form.diasSemana.length === 0) {
       toast.error('Preencha todos os campos obrigatórios.');
       return;
     }
-    const turma: Turma = {
-      id: editando?.id ?? `turma-${Date.now()}`,
-      nome: form.nome, modalidade: form.modalidade, descricao: form.descricao,
-      nivel: form.nivel, faixaEtaria: form.faixaEtaria,
-      professorId: user.id, professorNome: user.nome,
-      estudioId: form.estudioId, estudioNome: estudio?.nome ?? '',
-      diasSemana: form.diasSemana, horaInicio: form.horaInicio,
-      horaFim, duracao: form.duracao,
+    const payload = {
+      nomegrupo: form.nome,
+      status: form.status,
+      descricao: form.descricao,
+      modalidade: form.modalidade,
+      nivel: form.nivel,
+      faixaEtaria: form.faixaEtaria,
+      professorId: user.id,
+      estudioId: form.estudioId,
+      diasSemana: form.diasSemana,
+      horaInicio: form.horaInicio,
+      horaFim,
+      duracao: form.duracao,
       lotacaoMaxima: form.lotacaoMaxima,
       dataInicio: form.dataInicio || new Date().toISOString().split('T')[0],
       dataFim: form.dataFim || undefined,
-      status: form.status, cor: form.cor,
+      cor: form.cor,
       requisitos: form.requisitos || undefined,
-      alunosInscritos: editando?.alunosInscritos ?? [],
-      criadaEm: editando?.criadaEm ?? new Date().toISOString(),
     };
-    onSave(turma);
+    try {
+      if (editando) {
+        await api.updateTurma(parseInt(editando.id), payload);
+      } else {
+        await api.createTurma(payload);
+      }
+      onSave();
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao guardar grupo');
+    }
   };
 
   const preview: Partial<Turma> = {
-    ...form, horaFim, professorNome: user.nome,
-    estudioNome: estudio?.nome, alunosInscritos: editando?.alunosInscritos ?? [],
+    nome: form.nome, modalidade: form.modalidade, descricao: form.descricao,
+    nivel: form.nivel as NivelTurma, faixaEtaria: form.faixaEtaria,
+    cor: form.cor, diasSemana: form.diasSemana, horaInicio: form.horaInicio,
+    horaFim, duracao: form.duracao, lotacaoMaxima: form.lotacaoMaxima,
+    requisitos: form.requisitos, status: form.status,
+    professorNome: user.nome, estudioNome: estudio?.nome,
+    alunosInscritos: editando?.alunosInscritos ?? [],
   };
 
   return (
@@ -481,15 +506,15 @@ function NovaTurmaForm({
             <div>
               <label className="block text-sm text-[#4d7068] mb-1.5" style={{ fontWeight: 500 }}>Modalidade *</label>
               <select value={form.modalidade} onChange={e => setForm(f => ({ ...f, modalidade: e.target.value }))}
-                className="w-full px-4 py-2.5 border border-[#0d6b5e]/20 rounded-lg bg-[#f4f9f8] text-sm focus:outline-none focus:border-[#0d6b5e] text-[#0a1a17]">
+                className="w-full px-4 py-2.5 border border-[#0d6b5e]/20 rounded-lg bg-[#f4f9f8] text-sm focus:outline-none focus:border-[#0d6b5e]">
                 <option value="">Selecionar…</option>
-                {MODALIDADES.map(m => <option key={m} value={m}>{m}</option>)}
+                {modalidades.map(m => <option key={m} value={m}>{m}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-sm text-[#4d7068] mb-1.5" style={{ fontWeight: 500 }}>Nível</label>
               <select value={form.nivel} onChange={e => setForm(f => ({ ...f, nivel: e.target.value as NivelTurma }))}
-                className="w-full px-4 py-2.5 border border-[#0d6b5e]/20 rounded-lg bg-[#f4f9f8] text-sm focus:outline-none focus:border-[#0d6b5e] text-[#0a1a17]">
+                className="w-full px-4 py-2.5 border border-[#0d6b5e]/20 rounded-lg bg-[#f4f9f8] text-sm focus:outline-none focus:border-[#0d6b5e]">
                 {NIVEIS.map(n => <option key={n} value={n}>{n}</option>)}
               </select>
             </div>
@@ -536,7 +561,7 @@ function NovaTurmaForm({
             <div>
               <label className="block text-sm text-[#4d7068] mb-1.5" style={{ fontWeight: 500 }}>Duração</label>
               <select value={form.duracao} onChange={e => setForm(f => ({ ...f, duracao: Number(e.target.value) }))}
-                className="w-full px-4 py-2.5 border border-[#0d6b5e]/20 rounded-lg bg-[#f4f9f8] text-sm focus:outline-none focus:border-[#0d6b5e] text-[#0a1a17]">
+                className="w-full px-4 py-2.5 border border-[#0d6b5e]/20 rounded-lg bg-[#f4f9f8] text-sm focus:outline-none focus:border-[#0d6b5e]">
                 {[30, 45, 60, 75, 90, 120].map(d => <option key={d} value={d}>{d} min</option>)}
               </select>
               {horaFim && <p className="mt-1 text-xs text-[#0d6b5e]">Término: {horaFim}</p>}
@@ -544,9 +569,9 @@ function NovaTurmaForm({
             <div>
               <label className="block text-sm text-[#4d7068] mb-1.5" style={{ fontWeight: 500 }}>Estúdio *</label>
               <select value={form.estudioId} onChange={e => setForm(f => ({ ...f, estudioId: e.target.value }))}
-                className="w-full px-4 py-2.5 border border-[#0d6b5e]/20 rounded-lg bg-[#f4f9f8] text-sm focus:outline-none focus:border-[#0d6b5e] text-[#0a1a17]">
+                className="w-full px-4 py-2.5 border border-[#0d6b5e]/20 rounded-lg bg-[#f4f9f8] text-sm focus:outline-none focus:border-[#0d6b5e]">
                 <option value="">Selecionar…</option>
-                {estudios.map(e => <option key={e.id} value={e.id}>{e.nome} (cap. {e.capacidade})</option>)}
+                {salas.map(e => <option key={e.id} value={e.id}>{e.nome} (cap. {e.capacidade})</option>)}
               </select>
             </div>
             <div>
@@ -652,27 +677,30 @@ export function Turmas() {
   const { user } = useAuth();
   const [turmas, setTurmas] = useState<Turma[]>([]);
   const [users, setUsers] = useState<any[]>([]);
-  const [estudios, setEstudios] = useState<any[]>([]);
+  const [salas, setSalas] = useState<{ id: string; nome: string; capacidade: number }[]>([]);
+  const [modalidades, setModalidades] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editando, setEditando] = useState<Turma | null>(null);
   const [filtroModalidade, setFiltroModalidade] = useState('TODAS');
-  const [filtroNivel, setFiltroNivel] = useState('TODAS');
+  const [filtroNivel, setFiltroNivel] = useState('TODOS');
   const [filtroProf, setFiltroProf] = useState('TODOS');
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [turmasRes, usersRes, salasRes] = await Promise.all([
+        const [turmasRes, usersRes, salasRes, modalidadesRes] = await Promise.all([
           api.getTurmas(),
           api.getUsers(),
-          api.getSalas()
+          api.getSalas(),
+          api.getModalidades(),
         ]);
         if (turmasRes.success && turmasRes.data) setTurmas(turmasRes.data);
         if (usersRes.success && usersRes.data) setUsers(usersRes.data);
-        if (salasRes.success && salasRes.data) setEstudios(salasRes.data);
+        if (salasRes.success && salasRes.data) setSalas(salasRes.data);
+        if (modalidadesRes.success && modalidadesRes.data) setModalidades(modalidadesRes.data.map((m: any) => m.nome));
       } catch (error) {
-        console.error('Error fetching data:', error);
+        console.error('Error fetching turmas data:', error);
       } finally {
         setLoading(false);
       }
@@ -682,8 +710,9 @@ export function Turmas() {
 
   if (!user) return null;
 
-  const todasModalidades  = Array.from(new Set((turmas || []).map(t => t.modalidade))).sort();
-  const todosProfessores  = users.filter(u => u.role === 'PROFESSOR');
+  const todasModalidades = Array.from(new Set((turmas || []).map(t => t.modalidade))).sort();
+  const todosAlunos      = users.filter(u => u.role === 'ALUNO');
+  const todosProfessores = users.filter(u => u.role === 'PROFESSOR');
 
 const turmasFiltradas = (turmas || []).filter(t => {
     if (user.role === 'PROFESSOR' && t.professorId !== user.id) return false;
@@ -700,50 +729,70 @@ const turmasFiltradas = (turmas || []).filter(t => {
     return true;
   });
 
-  const handleSave = (nova: Turma) => {
-    setTurmas(prev => {
-      const idx = (prev || []).findIndex(t => t.id === nova.id);
-      return idx >= 0 ? (prev || []).map(t => t.id === nova.id ? nova : t) : [nova, ...(prev || [])];
-    });
+  const handleSave = async () => {
+    try {
+      const res = await api.getTurmas();
+      if (res.success && res.data) setTurmas(res.data);
+    } catch (_) {}
     setShowForm(false);
     setEditando(null);
     toast.success(editando ? 'Grupo atualizado com sucesso!' : 'Grupo criado com sucesso!');
   };
 
-  const handleToggleStatus = (id: string) => {
-    setTurmas(prev => (prev || []).map(t => {
-      if (t.id !== id) return t;
-      const novo: TurmaStatus = t.status === 'ABERTA' ? 'FECHADA' : 'ABERTA';
-      toast.success(`Inscrições ${novo === 'ABERTA' ? 'abertas' : 'fechadas'} para "${t.nome}"`);
-      return { ...t, status: novo };
-    }));
+  const handleToggleStatus = async (id: string) => {
+    try {
+      await api.closeTurma(parseInt(id));
+      setTurmas(prev => (prev || []).map(t => {
+        if (t.id !== id) return t;
+        const novo: TurmaStatus = t.status === 'ABERTA' ? 'FECHADA' : 'ABERTA';
+        toast.success(`Inscrições ${novo === 'ABERTA' ? 'abertas' : 'fechadas'} para "${t.nome}"`);
+        return { ...t, status: novo };
+      }));
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao alterar estado do grupo');
+    }
   };
 
-  const handleArchive = (id: string) => {
-    setTurmas(prev => (prev || []).map(t => t.id === id ? { ...t, status: 'ARQUIVADA' } : t));
-    toast.info('Grupo arquivado.');
+  const handleArchive = async (id: string) => {
+    try {
+      await api.archiveTurma(parseInt(id));
+      setTurmas(prev => (prev || []).map(t => t.id === id ? { ...t, status: 'ARQUIVADA' } : t));
+      toast.info('Grupo arquivado.');
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao arquivar grupo');
+    }
   };
 
-  const handleRemoveAluno = (turmaId: string, alunoId: string) => {
-    setTurmas(prev => (prev || []).map(t => t.id !== turmaId ? t : {
-      ...t, alunosInscritos: (t.alunosInscritos || []).filter(a => a.alunoId !== alunoId),
-    }));
-    toast.info('Aluno removido do grupo.');
+  const handleRemoveAluno = async (turmaId: string, alunoId: string) => {
+    try {
+      await api.removeAluno(parseInt(turmaId), parseInt(alunoId));
+      setTurmas(prev => (prev || []).map(t => t.id !== turmaId ? t : {
+        ...t, alunosInscritos: (t.alunosInscritos || []).filter(a => a.alunoId !== alunoId),
+      }));
+      toast.info('Aluno removido do grupo.');
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao remover aluno');
+    }
   };
 
-  const handleInscrever = (turmaId: string, alunoId: string) => {
+  const handleInscrever = async (turmaId: string, alunoId: string) => {
     const aluno = users.find(u => u.id === alunoId);
     if (!aluno) return;
-    setTurmas(prev => (prev || []).map(t => {
-      if (t.id !== turmaId) return t;
-      const nova: AlunoInscrito = {
-        alunoId, alunoNome: aluno.nome,
-        encarregadoId: aluno.encarregadoId ?? user.id,
-        inscritoEm: new Date().toISOString(),
-      };
-      return { ...t, alunosInscritos: [...(t.alunosInscritos || []), nova] };
-    }));
-    toast.success(`${aluno.nome} inscrito com sucesso!`);
+    try {
+      await api.enrollAluno(parseInt(turmaId), parseInt(alunoId));
+      setTurmas(prev => (prev || []).map(t => {
+        if (t.id !== turmaId) return t;
+        const nova: AlunoInscrito = {
+          alunoId, alunoNome: aluno.nome,
+          encarregadoId: aluno.encarregadoId ?? user.id,
+          inscritoEm: new Date().toISOString(),
+        };
+        return { ...t, alunosInscritos: [...(t.alunosInscritos || []), nova] };
+      }));
+      toast.success(`${aluno.nome} inscrito com sucesso!`);
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao inscrever aluno');
+    }
   };
 
   const isProfOrDir = user.role === 'PROFESSOR' || user.role === 'DIRECAO';
@@ -798,13 +847,13 @@ const turmasFiltradas = (turmas || []).filter(t => {
               ))}
               <span className="text-white/20 mx-1">|</span>
               <select value={filtroNivel} onChange={e => setFiltroNivel(e.target.value)}
-                className="px-3 py-1.5 rounded-lg text-sm bg-white/10 text-white border border-white/20 focus:outline-none focus:border-[#c9a84c] text-white">
+                className="px-3 py-1.5 rounded-lg text-sm bg-white/10 text-white border border-white/20 focus:outline-none focus:border-[#c9a84c]">
                 <option value="TODOS">Todos os níveis</option>
                 {NIVEIS.map(n => <option key={n} value={n}>{n}</option>)}
               </select>
               {user.role === 'DIRECAO' && (
                 <select value={filtroProf} onChange={e => setFiltroProf(e.target.value)}
-                  className="px-3 py-1.5 rounded-lg text-sm bg-white/10 text-white border border-white/20 focus:outline-none focus:border-[#c9a84c] text-white">
+                  className="px-3 py-1.5 rounded-lg text-sm bg-white/10 text-white border border-white/20 focus:outline-none focus:border-[#c9a84c]">
                   <option value="TODOS">Todos os professores</option>
                   {todosProfessores.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
                 </select>
@@ -822,6 +871,8 @@ const turmasFiltradas = (turmas || []).filter(t => {
           <div className="mb-8">
             <NovaTurmaForm
               user={{ id: user.id, nome: user.nome }}
+              salas={salas}
+              modalidades={modalidades}
               onSave={handleSave}
               onCancel={() => { setShowForm(false); setEditando(null); }}
               editando={editando}
@@ -868,6 +919,7 @@ const turmasFiltradas = (turmas || []).filter(t => {
                     <TurmaGerirCard
                       key={t.id}
                       turma={t}
+                      todosAlunos={todosAlunos}
                       onToggleStatus={handleToggleStatus}
                       onArchive={handleArchive}
                       onEdit={tt => { setEditando(tt); setShowForm(true); }}
@@ -901,6 +953,7 @@ const turmasFiltradas = (turmas || []).filter(t => {
                       key={t.id}
                       turma={t}
                       meusAlunosIds={user.alunosIds ?? []}
+                      todosUsuarios={users}
                       onInscrever={handleInscrever}
                     />
                   ))}

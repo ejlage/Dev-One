@@ -10,49 +10,49 @@ export default async function turmasRoutes(fastify) {
 
   fastify.post("/", async (req, reply) => {
     if (!hasRole(req.user.role, "DIRECAO", "PROFESSOR")) {
-      return reply.status(403).send({ success: false, error: "Acesso negated" });
+      return reply.status(403).send({ success: false, error: "Acesso negado" });
     }
     return turmasController.createTurma(req, reply);
   });
 
   fastify.put("/:id", async (req, reply) => {
     if (!hasRole(req.user.role, "DIRECAO", "PROFESSOR")) {
-      return reply.status(403).send({ success: false, error: "Acesso negated" });
+      return reply.status(403).send({ success: false, error: "Acesso negado" });
     }
     return turmasController.updateTurma(req, reply);
   });
 
   fastify.delete("/:id", async (req, reply) => {
     if (!hasRole(req.user.role, "DIRECAO")) {
-      return reply.status(403).send({ success: false, error: "Acesso negated" });
+      return reply.status(403).send({ success: false, error: "Acesso negado" });
     }
     return turmasController.deleteTurma(req, reply);
   });
 
   fastify.put("/:id/enroll", async (req, reply) => {
     if (!hasRole(req.user.role, "DIRECAO", "PROFESSOR", "ENCARREGADO")) {
-      return reply.status(403).send({ success: false, error: "Acesso negated" });
+      return reply.status(403).send({ success: false, error: "Acesso negado" });
     }
     return turmasController.enrollAluno(req, reply);
   });
 
   fastify.put("/:id/close", async (req, reply) => {
     if (!hasRole(req.user.role, "DIRECAO", "PROFESSOR")) {
-      return reply.status(403).send({ success: false, error: "Acesso negated" });
+      return reply.status(403).send({ success: false, error: "Acesso negado" });
     }
     return turmasController.closeTurma(req, reply);
   });
 
   fastify.put("/:id/archive", async (req, reply) => {
     if (!hasRole(req.user.role, "DIRECAO", "PROFESSOR")) {
-      return reply.status(403).send({ success: false, error: "Acesso negated" });
+      return reply.status(403).send({ success: false, error: "Acesso negado" });
     }
     return turmasController.archiveTurma(req, reply);
   });
 
   fastify.delete("/:id/alunos/:alunoId", async (req, reply) => {
     if (!hasRole(req.user.role, "DIRECAO", "PROFESSOR")) {
-      return reply.status(403).send({ success: false, error: "Acesso negated" });
+      return reply.status(403).send({ success: false, error: "Acesso negado" });
     }
     return turmasController.removeAluno(req, reply);
   });

@@ -78,6 +78,14 @@ export default async function professorRoutes(fastify) {
       
       return reply.status(201).send({ success: true, data: result.map(formatDisp) });
     } catch (err) {
+      const message = err.message || '';
+      // Erros de validação de negócio retornam códigos apropriados
+      if (message.includes('Já existe') || message.includes('overlap') || message.includes('conflito')) {
+        return reply.status(409).send({ success: false, error: message });
+      }
+      if (message.includes('passado') || message.includes('obrigatório') || message.includes('formato')) {
+        return reply.status(400).send({ success: false, error: message });
+      }
       return reply.status(500).send({ success: false, error: err.message });
     }
   });
@@ -125,13 +133,22 @@ export default async function professorRoutes(fastify) {
            parseInt(d.horainicio.split(':')[0])*60 - parseInt(d.horainicio.split(':')[1])) : 60);
         const minutosOcupados = parseInt(d.minutos_ocupados) || 0;
         const maxDuracao = Math.max(0, totalMinutos - minutosOcupados);
-        
+
+        // Effective start time advances by minutos_ocupados
+        const horaInicioBase = formatTime(d.horainicio);
+        let effectiveHoraInicio = horaInicioBase;
+        if (minutosOcupados > 0) {
+          const [h, m] = horaInicioBase.split(':').map(Number);
+          const totalMin = h * 60 + m + minutosOcupados;
+          effectiveHoraInicio = `${String(Math.floor(totalMin / 60)).padStart(2, '0')}:${String(totalMin % 60).padStart(2, '0')}`;
+        }
+
         return {
           id: String(d.iddisponibilidade_mensal),
           professorId: String(d.professorutilizadoriduser),
           professorNome: d.professor_nome || '',
           data: d.data ? new Date(d.data).toISOString().split('T')[0] : '',
-          horaInicio: formatTime(d.horainicio),
+          horaInicio: effectiveHoraInicio,
           horaFim: formatTime(d.horafim),
           duracao: totalMinutos,
           maxDuracao: maxDuracao,

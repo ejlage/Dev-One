@@ -30,17 +30,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const result = await api.login(email, password);
       if (result.success && result.user) {
         const userData: User = {
-          id: result.user.id,
+          id: String(result.user.id),
           nome: result.user.nome,
           email: result.user.email,
-          role: result.user.role?.toUpperCase(), // Normalizar para maiúsculas
-          telemovel: result.user.telemovel
+          role: result.user.role?.toUpperCase(),
+          telemovel: result.user.telemovel,
+          alunosIds: result.user.alunosIds || []
         };
         setUser(userData);
         localStorage.setItem('currentUser', JSON.stringify(userData));
+        if (result.token) {
+          localStorage.setItem('authToken', result.token);
+        }
         return { success: true };
       }
-      return { success: false, message: result.message || 'Login falhou' };
+      return { success: false, message: (result as any).message || 'Login falhou' };
     } catch (error: any) {
       return { success: false, message: error.message || 'Erro ao fazer login' };
     }
@@ -49,6 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     setUser(null);
     localStorage.removeItem('currentUser');
+    localStorage.removeItem('authToken');
     api.logout();
   };
 

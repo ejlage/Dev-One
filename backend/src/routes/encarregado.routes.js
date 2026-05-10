@@ -88,6 +88,10 @@ export default async function encarregadoRoutes(fastify) {
       
       return reply.status(201).send({ success: true, data: result });
     } catch (err) {
+      const message = err.message || '';
+      if (message.includes('passado') || message.includes('hora') || message.includes('obrigatório') || message.includes('formato')) {
+        return reply.status(400).send({ success: false, error: message });
+      }
       return reply.status(500).send({ success: false, error: err.message });
     }
   });

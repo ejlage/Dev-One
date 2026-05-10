@@ -95,16 +95,14 @@ export const getUserById = async (id) => {
 
 // Creates user with hashed password
 export const createUser = async (data) => {
-  const { nome, email, telemovel, password, role, modalidades } = data;
+  const { nome, email, telemovel, password, role, modalidades, encarregadoId } = data;
 
-  // Check if email already exists
-  const existingUser = await prisma.utilizador.findUnique({
-    where: { email }
-  });
-
-  if (existingUser) {
-    throw new Error("Email já registado");
+  if (role === 'ALUNO' && !encarregadoId) {
+    throw new Error("Encarregado de educação é obrigatório para alunos");
   }
+
+  const existingUser = await prisma.utilizador.findUnique({ where: { email } });
+  if (existingUser) throw new Error("Email já registado");
 
   const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -135,17 +133,25 @@ export const createUser = async (data) => {
     });
   }
 
-  // If creating professor, add modalidades
-  console.log('[DEBUG] Creating user with role:', role, 'modalidades:', modalidades);
+  if (role === 'ALUNO') {
+    const encId = parseInt(encarregadoId);
+    await prisma.encarregadoeducacao.upsert({
+      where: { utilizadoriduser: encId },
+      create: { utilizadoriduser: encId },
+      update: { utilizadoriduser: encId }
+    });
+    await prisma.aluno.create({
+      data: { utilizadoriduser: user.iduser, encarregadoiduser: encId }
+    });
+  }
+
   if (role === 'PROFESSOR' && modalidades && modalidades.length > 0) {
-    // First ensure professor record exists
     await prisma.professor.upsert({
       where: { utilizadoriduser: user.iduser },
       create: { utilizadoriduser: user.iduser },
       update: { utilizadoriduser: user.iduser }
     });
 
-    // Add modalidades
     for (const modId of modalidades) {
       try {
         await prisma.modalidadeprofessor.create({
@@ -154,8 +160,8 @@ export const createUser = async (data) => {
             professorutilizadoriduser: user.iduser
           }
         });
-      } catch (e) {
-        console.log('[DEBUG] Modalidade already exists or error:', e.message);
+      } catch (_) {
+        // modalidade already associated
       }
     }
   }
@@ -181,13 +187,7 @@ export const updateUser = async (id, data) => {
   let newRole = role?.toLowerCase();
 
   // Skip all role transition logic if role hasn't changed
-  if (previousRole === newRole) {
-    console.log('[DEBUG] Role unchanged, skipping transitions');
-  } else {
-    console.log('[DEBUG] Role changed from', previousRole, 'to', newRole);
-  }
-
-// Handle encarregado relationship for students
+  // Handle encarregado relationship for students
   const currentRole = existingUser.role?.toLowerCase();
   if (encarregadoId !== undefined && (newRole === "aluno" || currentRole === "aluno")) {
     const existsAluno = await prisma.aluno.findFirst({
@@ -291,8 +291,8 @@ export const updateUser = async (id, data) => {
               professorutilizadoriduser: id
             }
           });
-        } catch (e) {
-          console.log('[DEBUG] Error adding modalidade:', e.message);
+        } catch (_) {
+          // modalidade already associated
         }
       }
     }

@@ -3,7 +3,12 @@ import * as salasService from "../services/salas.service.js";
 export const getAllSalas = async (req, reply) => {
   try {
     const salas = await salasService.getAllSalas();
-    return reply.send({ success: true, data: salas });
+    const mapped = salas.map(s => ({
+      id: String(s.idsala),
+      nome: s.nomesala,
+      capacidade: s.capacidade ?? 0,
+    }));
+    return reply.send({ success: true, data: mapped });
   } catch (error) {
     return reply.status(400).send({ success: false, error: error.message });
   }

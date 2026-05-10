@@ -105,19 +105,6 @@ export function Login() {
           </button>
         </form>
 
-        <div className="mt-8 p-4 bg-[#e2f0ed] rounded-xl border border-[#0d6b5e]/20">
-          <p className="text-sm text-[#0a1a17] mb-2">
-            <strong>Contas de teste:</strong>
-          </p>
-          <div className="space-y-1 text-xs text-[#0d6b5e]">
-            <p>• <strong>Direção:</strong> direcao@entartes.pt</p>
-            <p>• <strong>Professor:</strong> joao.santos@entartes.pt</p>
-            <p>• <strong>Encarregado:</strong> pedro.oliveira@email.pt</p>
-            <p>• <strong>Aluno:</strong> miguel.oliveira@email.pt</p>
-            <p className="mt-2 text-[#4d7068]">Password para todos: <strong className="text-[#0a1a17]">password123</strong></p>
-          </div>
-        </div>
-
         <div className="mt-6 text-center">
           <Link to="/" className="text-sm text-[#4d7068] hover:text-[#0d6b5e] transition-colors">
             ← Voltar ao Site

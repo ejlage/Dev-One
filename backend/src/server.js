@@ -16,6 +16,7 @@ import notificacoesRoutes from "./routes/notificacoes.routes.js";
 import aluguerFigurinoRoutes from "./routes/aluguerFigurino.routes.js";
 import professorRoutes from "./routes/professor.routes.js";
 import * as professorService from "./services/professor.service.js";
+import prisma from "./config/db.js";
 import alunoRoutes from "./routes/aluno.routes.js";
 import encarregadoRoutes from "./routes/encarregado.routes.js";
 import professorAulasRoutes from "./routes/professor-aulas.routes.js";
@@ -30,6 +31,37 @@ app.register(cors, {
   origin: "http://localhost:5173",
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
+});
+
+app.get("/api/public/modalidades", async (req, reply) => {
+  try {
+    const modalidades = await prisma.modalidade.findMany({ orderBy: { nome: 'asc' } });
+    return reply.send({ success: true, data: modalidades });
+  } catch (err) {
+    return reply.status(500).send({ success: false, error: err.message });
+  }
+});
+
+app.get("/api/public/eventos", async (req, reply) => {
+  try {
+    const eventos = await prisma.evento.findMany({
+      where: { publicado: true },
+      orderBy: { dataevento: 'asc' }
+    });
+    return reply.send({ success: true, data: eventos.map(e => ({
+      id: String(e.idevento),
+      titulo: e.titulo,
+      descricao: e.descricao,
+      data: e.dataevento ? new Date(e.dataevento).toISOString().split('T')[0] : '',
+      local: e.localizacao,
+      imagem: e.imagem,
+      linkBilhetes: e.linkbilhetes,
+      destaque: e.destaque,
+      publicado: e.publicado,
+    }))});
+  } catch (err) {
+    return reply.status(500).send({ success: false, error: err.message });
+  }
 });
 
 app.get("/api/public/disponibilidades", async (req, reply) => {

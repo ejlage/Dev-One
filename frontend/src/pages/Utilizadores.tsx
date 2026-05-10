@@ -3,6 +3,8 @@ import { Link } from 'react-router';
 import { User, UserRole } from '../types';
 import api from '../services/api';
 import { UserPlus, Users, Search, ArrowLeft, Printer, Eye, EyeOff } from 'lucide-react';
+import { toast } from 'sonner';
+import { Toaster } from '../components/ui/sonner';
 
 export function Utilizadores() {
   const [users, setUsers] = useState<User[]>([]);
@@ -17,21 +19,8 @@ export function Utilizadores() {
   
   // Dinâmica de modalidades para professor
   const [modalidadesProfessor, setModalidadesProfessor] = useState<string[]>(['']);
+  const [modalidadesDisponiveis, setModalidadesDisponiveis] = useState<{ id: number; nome: string }[]>([]);
   const MAX_MODALIDADES = 4;
-  
-  const modalidadesDisponiveis = [
-    { id: 21, nome: 'Ballet Clássico' },
-    { id: 22, nome: 'Jazz' },
-    { id: 23, nome: 'Moderno' },
-    { id: 24, nome: 'Contemporâneo' },
-    { id: 25, nome: 'Hip Hop' },
-    { id: 26, nome: 'Street Dance' },
-    { id: 27, nome: 'Irish Dance' },
-    { id: 28, nome: 'Dance Fitness' },
-    { id: 29, nome: 'K-Pop' },
-    { id: 30, nome: 'Zumba' },
-    { id: 31, nome: 'Fit Dance' }
-  ];
   
   const handleModalidadeChange = (index: number, value: string) => {
     const novas = [...modalidadesProfessor];
@@ -112,19 +101,23 @@ export function Utilizadores() {
   };
 
   useEffect(() => {
-    const fetchUsers = async () => {
+    const fetchData = async () => {
       try {
-        const result = await api.getUsers();
-        if (result.success && result.data) {
-          setUsers(result.data);
+        const [usersRes, modalidadesRes] = await Promise.all([
+          api.getUsers(),
+          api.getModalidades(),
+        ]);
+        if (usersRes.success && usersRes.data) setUsers(usersRes.data);
+        if (modalidadesRes.success && modalidadesRes.data) {
+          setModalidadesDisponiveis(modalidadesRes.data.map((m: any) => ({ id: m.idmodalidade, nome: m.nome })));
         }
       } catch (error) {
-        console.error('Error fetching users:', error);
+        console.error('Error fetching data:', error);
       } finally {
         setLoading(false);
       }
     };
-    fetchUsers();
+    fetchData();
   }, []);
 
   const getUsersFiltrados = () => {
@@ -292,15 +285,11 @@ export function Utilizadores() {
     if (user.role === 'PROFESSOR') {
       try {
         const userId = Number(user.id || user.iduser);
-        console.log('Fetching modalidades for user:', userId, 'role:', user.role);
         const modRes = await api.getUserModalidades(userId);
-        console.log('Modalidades response:', modRes);
         if (modRes.success && modRes.data && modRes.data.length > 0) {
           const modIds = modRes.data.map((m: any) => m.modalidadeidmodalidade.toString());
-          console.log('Setting editModalidades:', modIds);
           setEditModalidades(modIds);
         } else {
-          console.log('No modalidades found, setting empty');
           setEditModalidades(['']);
         }
       } catch (err) {
@@ -308,7 +297,6 @@ export function Utilizadores() {
         setEditModalidades(['']);
       }
     } else {
-      console.log('User role is not PROFESSOR:', user.role);
       setEditModalidades(['']);
     }
   };
@@ -337,10 +325,7 @@ export function Utilizadores() {
         }
       }
 
-      console.log('Updating user:', editingUser.id, updateData);
-      
-      const updateResult = await api.updateUser(Number(editingUser.id), updateData);
-      console.log('Update result:', updateResult);
+      await api.updateUser(Number(editingUser.id), updateData);
       
       const usersResult = await api.getUsers();
       if (usersResult.success && usersResult.data) {
@@ -350,7 +335,7 @@ export function Utilizadores() {
       setEditingUser(null);
     } catch (error) {
       console.error('Error updating user:', error);
-      alert('Erro ao guardar: ' + (error as any)?.message || error);
+      toast.error('Erro ao guardar: ' + ((error as any)?.message || 'Tente novamente'));
     } finally {
       setSubmitting(false);
     }
@@ -373,6 +358,7 @@ export function Utilizadores() {
 
   return (
     <div className="min-h-screen bg-[#f4f9f8]">
+      <Toaster position="top-right" />
       {/* Header */}
       <div className="bg-[#0a1a17] border-b border-white/5">
         <div className="max-w-7xl mx-auto px-4 py-6">

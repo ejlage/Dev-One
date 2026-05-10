@@ -119,21 +119,21 @@ export default async function aulasRoutes(fastify) {
 
   fastify.post("/", async (req, reply) => {
     if (!hasRole(req.user.role, "PROFESSOR", "DIRECAO")) {
-      return reply.status(403).send({ success: false, error: "Acesso negated" });
+      return reply.status(403).send({ success: false, error: "Acesso negado" });
     }
     return aulasController.createAula(req, reply);
   });
 
   fastify.put("/:id", async (req, reply) => {
     if (!hasRole(req.user.role, "PROFESSOR", "DIRECAO")) {
-      return reply.status(403).send({ success: false, error: "Acesso negated" });
+      return reply.status(403).send({ success: false, error: "Acesso negado" });
     }
     return aulasController.updateAula(req, reply);
   });
 
   fastify.delete("/:id", async (req, reply) => {
     if (!hasRole(req.user.role, "DIRECAO")) {
-      return reply.status(403).send({ success: false, error: "Acesso negated" });
+      return reply.status(403).send({ success: false, error: "Acesso negado" });
     }
     return aulasController.deleteAula(req, reply);
   });
@@ -149,6 +149,20 @@ export default async function aulasRoutes(fastify) {
       return reply.status(403).send({ success: false, error: "Apenas professores ou direção podem sugerir novas datas" });
     }
     return aulasController.sugerirNovaData(req, reply);
+  });
+
+  fastify.post("/:id/responder-direcao", async (req, reply) => {
+    if (!hasRole(req.user.role, "DIRECAO")) {
+      return reply.status(403).send({ success: false, error: "Apenas a direção pode responder a esta sugestão" });
+    }
+    return aulasController.responderSugestaoDirecao(req, reply);
+  });
+
+  fastify.post("/:id/pedir-remarcacao", async (req, reply) => {
+    if (!hasRole(req.user.role, "PROFESSOR")) {
+      return reply.status(403).send({ success: false, error: "Apenas professores podem pedir remarcação" });
+    }
+    return aulasController.pedirRemarcacao(req, reply);
   });
 
   fastify.post("/:id/responder-professor", async (req, reply) => {

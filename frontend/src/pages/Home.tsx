@@ -252,7 +252,7 @@ export function Home() {
             Junte-se à família ENT'ARTES e descubra o artista que existe em você
           </p>
           <Link
-            to="/login"
+            to="/experimentar"
             className="inline-block bg-[#c9a84c] text-[#0a1a17] px-10 py-4 rounded-full hover:bg-[#e8c97a] transition-colors"
             style={{ fontWeight: 600 }}
           >

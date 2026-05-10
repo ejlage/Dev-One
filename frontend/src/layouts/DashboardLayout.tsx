@@ -1,25 +1,26 @@
 import { useEffect } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router';
 import { useAuth } from '../contexts/AuthContext';
-import { LogOut, Home, Calendar, ShoppingBag, Package, Users, BookOpen, Clock } from 'lucide-react';
+import { LogOut, Home, Calendar, ShoppingBag, Package, Users, BookOpen, Clock, Ticket, ClipboardList } from 'lucide-react';
+import { NotificacoesBell } from '../components/NotificacoesBell';
 
 export function DashboardLayout() {
-  const { user, logout } = useAuth();
+  const { user, logout, loading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
-    if (!user) {
+    if (!loading && !user && location.pathname.startsWith('/dashboard')) {
       navigate('/login');
     }
-  }, [user, navigate]);
+  }, [user, loading, navigate, location]);
 
   const handleLogout = () => {
     logout();
-    navigate('/login');
+    navigate('/');
   };
 
-  if (!user) {
+  if (loading || !user) {
     return null;
   }
 
@@ -76,6 +77,18 @@ export function DashboardLayout() {
       icon: Users,
       label: 'Utilizadores',
       roles: ['DIRECAO']
+    },
+    {
+      path: '/dashboard/eventos',
+      icon: Ticket,
+      label: 'Eventos',
+      roles: ['DIRECAO']
+    },
+    {
+      path: '/dashboard/inscricoes',
+      icon: ClipboardList,
+      label: 'Inscrições',
+      roles: ['DIRECAO']
     }
   ].filter(item => item.roles.includes(user.role));
 
@@ -119,6 +132,8 @@ export function DashboardLayout() {
                   );
                 })}
               </div>
+
+              <NotificacoesBell />
 
               <button
                 onClick={handleLogout}

@@ -17,6 +17,26 @@ export const getDisponibilidadesMensais = async (professorId) => {
 export const createDisponibilidadeMensal = async (data) => {
   const { professorutilizadoriduser, modalidadesprofessoridmodalidadeprofessor, data: dataDisponibilidade, horainicio, horafim, salaid } = data;
 
+  const horaInicioNum = parseInt(horainicio.split(':')[0]) * 60 + parseInt(horainicio.split(':')[1]);
+  const horaFimNum = parseInt(horafim.split(':')[0]) * 60 + parseInt(horafim.split(':')[1]);
+
+  const existing = await prisma.$queryRaw`
+    SELECT iddisponibilidade_mensal, horainicio, horafim, data
+    FROM disponibilidade_mensal
+    WHERE professorutilizadoriduser = ${parseInt(professorutilizadoriduser)}
+    AND data = ${dataDisponibilidade}::date
+    AND ativo = true
+    AND (
+      (EXTRACT(HOUR FROM horainicio)::int * 60 + EXTRACT(MINUTE FROM horainicio)::int) < ${horaFimNum}
+      AND
+      (EXTRACT(HOUR FROM horafim)::int * 60 + EXTRACT(MINUTE FROM horafim)::int) > ${horaInicioNum}
+    )
+  `;
+
+  if (existing && existing.length > 0) {
+    throw new Error('Já existe uma disponibilidade para este professor nesta data e horário');
+  }
+
   return await prisma.$queryRawUnsafe(`
     INSERT INTO disponibilidade_mensal
     (professorutilizadoriduser, modalidadesprofessoridmodalidadeprofessor, data, horainicio, horafim, ativo, salaid)
@@ -28,6 +48,27 @@ export const createDisponibilidadeMensal = async (data) => {
 
 export const updateDisponibilidadeMensal = async (id, data) => {
   const { data: dataDisponibilidade, horainicio, horafim, ativo, salaid } = data;
+
+  const novoInicio = `${horainicio}:00`;
+  const novoFim = `${horafim}:00`;
+
+  const existing = await prisma.$queryRaw`
+    SELECT iddisponibilidade_mensal, horainicio, horafim, data
+    FROM disponibilidade_mensal
+    WHERE professorutilizadoriduser = (
+      SELECT professorutilizadoriduser FROM disponibilidade_mensal WHERE iddisponibilidade_mensal = ${parseInt(id)}
+    )
+    AND data = ${dataDisponibilidade}::date
+    AND ativo = true
+    AND iddisponibilidade_mensal != ${parseInt(id)}
+    AND (
+      (${novoInicio}::time < horafim::time AND ${novoFim}::time > horainicio::time)
+    )
+  `;
+
+  if (existing && existing.length > 0) {
+    throw new Error('Já existe uma disponibilidade para este professor nesta data e horário');
+  }
 
   return await prisma.$queryRawUnsafe(`
     UPDATE disponibilidade_mensal
@@ -80,16 +121,16 @@ export const getProfessorAulas = async (professorId) => {
       s.nomesala as sala_nome,
       mp.modalidadeidmodalidade,
       m.nome as modalidade_nome,
-      u.nome as aluno_nome,
-      u.iduser as aluno_id
+      alu.nome as aluno_nome,
+      alu.iduser as aluno_id
     FROM pedidodeaula pa
     JOIN estado e ON pa.estadoidestado = e.idestado
     JOIN sala s ON pa.salaidsala = s.idsala
-    JOIN disponibilidade_mensal dm ON pa.disponibilidade_mensal_id = dm.iddisponibilidade_mensal
-    JOIN modalidadeprofessor mp ON dm.modalidadesprofessoridmodalidadeprofessor = mp.idmodalidadeprofessor
-    JOIN modalidade m ON mp.modalidadeidmodalidade = m.idmodalidade
-    JOIN utilizador u ON pa.encarregadoeducacaoutilizadoriduser = u.iduser
-    WHERE dm.professorutilizadoriduser = ${professorId}
+    LEFT JOIN disponibilidade_mensal dm ON pa.disponibilidade_mensal_id = dm.iddisponibilidade_mensal
+    LEFT JOIN modalidadeprofessor mp ON dm.modalidadesprofessoridmodalidadeprofessor = mp.idmodalidadeprofessor
+    LEFT JOIN modalidade m ON mp.modalidadeidmodalidade = m.idmodalidade
+    LEFT JOIN utilizador alu ON pa.alunoutilizadoriduser = alu.iduser
+    WHERE (dm.professorutilizadoriduser = ${professorId} OR pa.professorutilizadoriduser = ${professorId})
     AND (LOWER(e.tipoestado) IN ('confirmado', 'realizado') OR pa.sugestaoestado = 'AGUARDA_PROFESSOR')
     ORDER BY pa.data DESC, pa.horainicio DESC
   `;

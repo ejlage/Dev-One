@@ -12,19 +12,7 @@ export default async function professorAulasRoutes(fastify) {
         return reply.status(403).send({ success: false, error: "Acesso negado" });
       }
       const aulas = await professorAulasService.getProfessorAulas(req.user.id);
-      const formatted = aulas.map(a => ({
-        id: String(a.idpedidoaula),
-        data: a.data ? new Date(a.data).toISOString().split('T')[0] : '',
-        horaInicio: a.horainicio ? String(a.horainicio).substring(0, 5) : '',
-        duracao: a.duracaoaula ? parseInt(String(a.duracaoaula).split(':')[0]) : 60,
-        status: a.estado_nome || '',
-        modalidade: a.modalidade_nome || '',
-        sala: a.sala_nome || '',
-        alunoId: String(a.aluno_id || ''),
-        alunoNome: a.aluno_nome || '',
-        privacidade: a.privacidade || false
-      }));
-      return reply.send({ success: true, data: formatted });
+      return reply.send({ success: true, data: aulas });
     } catch (err) {
       return reply.status(500).send({ success: false, error: err.message });
     }

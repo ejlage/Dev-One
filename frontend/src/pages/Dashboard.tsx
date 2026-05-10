@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { Calendar, Clock, CheckCircle2, AlertCircle, ChevronRight, ShoppingBag, Users, BookOpen, Printer } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { PrintAulasModal } from '../components/PrintAulasModal';
+import { AulasStatistics } from '../components/AulasStatistics';
 import api from '../services/api';
 
 export function Dashboard() {
@@ -20,31 +21,36 @@ export function Dashboard() {
     const fetchData = async () => {
       if (!user) return;
       try {
-        const fetchPromises = [
-          api.getAulas(),
+        const aulasPromise =
+          user.role === 'ENCARREGADO' ? api.getEncarregadoAulas()
+          : user.role === 'PROFESSOR'  ? api.getProfessorAulas()
+          : user.role === 'ALUNO'      ? api.getAlunoAulas()
+          : api.getDirecaoAulas();
+
+        const dispPromise =
+          user.role === 'PROFESSOR'  ? api.getMyDisponibilidades()
+          : user.role === 'ALUNO'    ? api.getAlunoDisponibilidades()
+          : user.role === 'ENCARREGADO' ? api.getEncarregadoDisponibilidades()
+          : Promise.resolve({ success: false, data: [] });
+
+        const [aulasRes, anunciosRes, turmasRes, dispRes] = await Promise.all([
+          aulasPromise,
           api.getAnuncios(),
-          api.getTurmas()
-        ];
-        
-        if (user.role === 'PROFESSOR') {
-          fetchPromises.push(api.getProfessorDisponibilidades());
-        }
-        
-        const results = await Promise.all(fetchPromises);
-        
-        if (results[0].success) setAulas(results[0].data || []);
-        if (results[1].success) setAnuncios(results[1].data || []);
-        if (results[2].success) setTurmas(results[2].data || []);
-        if (user.role === 'PROFESSOR' && results[3]?.success) {
-          setDisponibilidades(results[3].data || []);
-        }
+          api.getTurmas(),
+          dispPromise,
+        ]);
+
+        if (aulasRes.success)   setAulas(aulasRes.data || []);
+        if (anunciosRes.success) setAnuncios(anunciosRes.data || []);
+        if (turmasRes.success)  setTurmas(turmasRes.data || []);
+        if (dispRes.success)    setDisponibilidades(dispRes.data || []);
       } catch (error) {
         console.error('Error fetching data:', error);
       } finally {
         setLoading(false);
       }
     };
-    
+
     fetchData();
   }, [user]);
 
@@ -57,18 +63,15 @@ export function Dashboard() {
     return 'Boa noite';
   };
 
-  const getFilteredAulas = () => {
-    if (user.role === 'ALUNO') return aulas.filter(a => a.alunoId === user.id);
-    if (user.role === 'PROFESSOR') return aulas.filter(a => a.professorId === user.id);
-    if (user.role === 'ENCARREGADO') return aulas.filter(a => a.encarregadoId === user.id);
-    return aulas;
-  };
+  const getFilteredAulas = () => aulas;
 
   const allAulas = getFilteredAulas();
 
   const getFilteredAnuncios = () => {
     if (user.role === 'DIRECAO') return anuncios;
-    if (user.role === 'ENCARREGADO') return anuncios.filter(a => a.vendedorId === user.id);
+    if (user.role === 'ENCARREGADO' || user.role === 'PROFESSOR') {
+      return anuncios.filter(a => a.vendedorId === user.id);
+    }
     return [];
   };
 
@@ -176,16 +179,56 @@ export function Dashboard() {
                       <Clock className="w-4 h-4 text-white" />
                     </div>
                     <div>
-                      <div className="text-sm font-medium text-[#0a1a17]">{d.diaSemana}</div>
-                      <div className="text-xs text-[#4d7068]">{d.horaInicio} - {d.horaFim}</div>
+                      <div className="text-sm font-medium text-[#0a1a17]">
+                        {d.data ? new Date(d.data + 'T12:00:00').toLocaleDateString('pt-PT', { weekday: 'short', day: 'numeric', month: 'short' }) : '—'}
+                      </div>
+                      <div className="text-xs text-[#4d7068]">{d.horainicio || d.horaInicio} - {d.horafim || d.horaFim}</div>
                     </div>
                   </div>
                   <div className="text-xs text-[#4d7068]">
-                    {d.modalidadeNome}
+                    {d.modalidade_nome || d.modalidade || '—'}
                   </div>
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {(user.role === 'ALUNO' || user.role === 'ENCARREGADO') && disponibilidades.length > 0 && (
+          <div className="bg-white rounded-2xl shadow-sm p-6 mb-8 border border-[#0d6b5e]/10">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl text-[#0a1a17]">Disponibilidades dos Professores</h2>
+              <Link to="/dashboard/aulas"
+                className="flex items-center gap-1 text-sm text-[#0d6b5e] hover:text-[#065147] transition-colors"
+                style={{ fontWeight: 500 }}>
+                Ver todas <ChevronRight className="w-4 h-4" />
+              </Link>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {disponibilidades.slice(0, 6).map(d => (
+                <div key={d.id} className="p-4 rounded-xl border border-[#0d6b5e]/10 bg-[#f4f9f8]">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-8 h-8 bg-[#0d6b5e] rounded-lg flex items-center justify-center">
+                      <Clock className="w-4 h-4 text-white" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-[#0a1a17]">{d.professorNome || 'Professor'}</div>
+                      <div className="text-xs text-[#4d7068]">{d.data}</div>
+                    </div>
+                  </div>
+                  <div className="text-xs text-[#4d7068]">
+                    {d.horaInicio} - {d.horaFim} • {d.modalidade}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Estatísticas de aulas ───────────────────────────────────────── */}
+        {allAulas.length > 0 && (
+          <div className="mb-8">
+            <AulasStatistics aulas={allAulas} />
           </div>
         )}
 
@@ -200,11 +243,12 @@ export function Dashboard() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-[#0d6b5e]/10 text-left">
-                  <th className="pb-3 text-sm text-[#4d7068]">Data</th>
+                  <th className="pb-3 text-sm text-[#4d7068]">Data / Hora</th>
                   <th className="pb-3 text-sm text-[#4d7068]">
-                    {user.role === 'PROFESSOR' ? 'Aluno' : 'Professor'}
+                    {user.role === 'PROFESSOR' ? 'Aluno' : (user.role === 'DIRECAO' ? 'Aluno / Professor' : 'Professor')}
                   </th>
                   <th className="pb-3 text-sm text-[#4d7068]">Sala</th>
+                  <th className="pb-3 text-sm text-[#4d7068]">Modalidade</th>
                   <th className="pb-3 text-sm text-[#4d7068]">Estado</th>
                   <th className="pb-3 text-sm text-[#4d7068]"></th>
                 </tr>
@@ -214,7 +258,8 @@ export function Dashboard() {
                   <tr key={aula.id} className="border-b border-[#0d6b5e]/5 hover:bg-[#f4f9f8] transition-colors">
                     <td className="py-4">
                       <div className="text-sm text-[#0a1a17]">{formatDate(aula.data)}</div>
-                      <div className="text-sm text-[#4d7068]">{aula.horaInicio} – {aula.horaFim}</div>
+                      <div className="text-sm text-[#4d7068]">{aula.horaInicio} – {aula.horaFim || aula.horaInicio}</div>
+                      <div className="text-xs text-[#4d7068]">{aula.duracao ? `${aula.duracao} min` : '—'}</div>
                     </td>
                     <td className="py-4">
                       <div className="flex items-center gap-3">
@@ -222,11 +267,12 @@ export function Dashboard() {
                           <Users className="w-4 h-4 text-[#0d6b5e]" />
                         </div>
                         <span className="text-sm text-[#0a1a17]">
-                          {user.role === 'PROFESSOR' ? aula.alunoNome : aula.professorNome}
+                          {user.role === 'PROFESSOR' ? aula.alunoNome : (user.role === 'DIRECAO' && aula.alunoNome ? aula.alunoNome : aula.professorNome)}
                         </span>
                       </div>
                     </td>
                     <td className="py-4 text-sm text-[#0a1a17]">{aula.estudioNome}</td>
+                    <td className="py-4 text-xs text-[#4d7068]">{aula.modalidade || '—'}</td>
                     <td className="py-4">{getStatusBadge(aula.status)}</td>
                     <td className="py-4">
                       <button className="text-[#0d6b5e]/30 hover:text-[#0d6b5e] transition-colors">

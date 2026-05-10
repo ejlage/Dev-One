@@ -34,11 +34,12 @@ export const createTransacao = async (req, reply) => {
 export const updateTransacaoStatus = async (req, reply) => {
   try {
     const { id } = req.params;
-    const { estadoidestado } = req.body;
+    const { estadoidestado, motivorejeicao } = req.body;
     const transacao = await aluguerService.updateTransacaoStatus(
       parseInt(id),
       estadoidestado,
-      req.user.id
+      req.user.id,
+      motivorejeicao
     );
     return reply.send({ success: true, data: transacao });
   } catch (error) {

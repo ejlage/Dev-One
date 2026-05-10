@@ -152,12 +152,25 @@ export const updateFigurinoStatus = async (id, novoEstadoId) => {
 const STATUS_MAP = { DISPONIVEL: 19, ALUGADO: 21, VENDIDO: 17 };
 const ESTADO_TO_STATUS = { 16: 'DISPONIVEL', 17: 'DISPONIVEL', 18: 'DISPONIVEL', 19: 'DISPONIVEL', 20: 'ALUGADO', 21: 'ALUGADO' };
 
-export const createFigurinoStock = async (data, direcaoUserId) => {
+export const createFigurinoStock = async (data, callerUserId, callerRole) => {
   const {
     nome, descricao, fotografia, tipofigurinoid,
-    tamanhoid, generoid, corid, localizacao,
-    quantidadetotal = 1, quantidadedisponivel = 1
+    tamanhoid, generoid, corid, estadousoid, localizacao,
+    quantidadetotal = 1, quantidadedisponivel = 1,
+    encarregadoeducacaoutilizadoriduser, professorutilizadoriduser,
   } = data;
+  const estadoUsoId = estadousoid ? parseInt(estadousoid) : 19;
+
+  let direcaoFkId = null;
+  let encFkId = encarregadoeducacaoutilizadoriduser ? parseInt(encarregadoeducacaoutilizadoriduser) : null;
+  let profFkId = professorutilizadoriduser ? parseInt(professorutilizadoriduser) : null;
+
+  if (callerRole === 'DIRECAO' && callerUserId) {
+    const direcaoRecord = await prisma.direcao.findFirst({
+      where: { utilizadoriduser: parseInt(callerUserId) },
+    });
+    if (direcaoRecord) direcaoFkId = direcaoRecord.utilizadoriduser;
+  }
 
   const modelo = await prisma.modelofigurino.create({
     data: {
@@ -180,9 +193,11 @@ export const createFigurinoStock = async (data, direcaoUserId) => {
       generoidgenero: parseInt(generoid),
       tamanhoidtamanho: parseInt(tamanhoid),
       coridcor: parseInt(corid),
-      estadousoidestado: 19,
+      estadousoidestado: estadoUsoId,
       itemfigurinoiditem: item.iditem,
-      ...(direcaoUserId && { direcaoutilizadoriduser: parseInt(direcaoUserId) }),
+      ...(direcaoFkId && { direcaoutilizadoriduser: direcaoFkId }),
+      ...(encFkId && { encarregadoeducacaoutilizadoriduser: encFkId }),
+      ...(profFkId && { professorutilizadoriduser: profFkId }),
     },
     include: { estadouso: true, tamanho: true, cor: true, genero: true, modelofigurino: true, itemfigurino: true }
   });
@@ -202,14 +217,15 @@ export const updateFigurinoStatusSimple = async (id, statusStr) => {
 };
 
 export const getLookupData = async () => {
-  const [tamanhos, generos, cores, modelos, tipos] = await Promise.all([
+  const [tamanhos, generos, cores, modelos, tipos, estadosUso] = await Promise.all([
     prisma.tamanho.findMany(),
     prisma.genero.findMany(),
     prisma.cor.findMany(),
     prisma.modelofigurino.findMany({ include: { tipofigurino: true } }),
     prisma.tipofigurino.findMany(),
+    prisma.estadouso.findMany({ orderBy: { idestado: 'asc' } }),
   ]);
-  return { tamanhos, generos, cores, modelos, tipos };
+  return { tamanhos, generos, cores, modelos, tipos, estadosUso };
 };
 
 const mapFigurino = (f) => ({

@@ -45,40 +45,59 @@ export function AlunoAgendaView({ aulas, nomeAluno }: AlunoAgendaViewProps) {
     );
   };
 
+  const semAulas = aulas.length === 0;
+
   return (
     <div className="space-y-6">
       {/* Bem-vindo */}
       <div className="bg-gradient-to-br from-[#0d6b5e] to-[#0a4f45] rounded-2xl p-6 text-white">
         <h2 className="text-2xl mb-2" style={{ fontWeight: 600 }}>
-          Olá, {nomeAluno}! 👋
+          Olá, {nomeAluno}!
         </h2>
         <p className="text-white/80">
-          Aqui está a sua agenda de aulas. Pode consultar todas as informações,
-          mas apenas o seu encarregado pode solicitar novas aulas.
+          {semAulas
+            ? 'Ainda não tens aulas agendadas. Pede ao teu encarregado para marcar a primeira aula.'
+            : 'Aqui está a tua agenda de aulas. Apenas o teu encarregado pode solicitar novas aulas.'}
         </p>
       </div>
 
-      {/* Estatísticas rápidas */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="bg-white p-4 rounded-xl border border-[#0d6b5e]/10">
-          <p className="text-sm text-[#4d7068] mb-1">Pendentes</p>
-          <p className="text-3xl text-[#0a1a17]" style={{ fontWeight: 700 }}>
-            {aulasPendentes.length}
+      {/* Estado vazio — sem nenhuma aula */}
+      {semAulas && (
+        <div className="bg-white rounded-2xl border-2 border-dashed border-[#0d6b5e]/20 p-12 text-center">
+          <Calendar className="w-16 h-16 text-[#0d6b5e]/20 mx-auto mb-4" />
+          <p className="text-[#0a1a17] text-lg mb-2" style={{ fontWeight: 600 }}>
+            Nenhuma aula agendada
+          </p>
+          <p className="text-[#4d7068] text-sm max-w-sm mx-auto">
+            Quando o teu encarregado marcar uma aula, ela aparecerá aqui. Podes pedir-lhe para entrar em
+            contacto com a escola.
           </p>
         </div>
-        <div className="bg-white p-4 rounded-xl border border-[#0d6b5e]/10">
-          <p className="text-sm text-[#4d7068] mb-1">Confirmadas</p>
-          <p className="text-3xl text-[#0d6b5e]" style={{ fontWeight: 700 }}>
-            {aulasConfirmadas.length}
-          </p>
+      )}
+
+      {/* Estatísticas rápidas — só quando há aulas */}
+      {!semAulas && (
+        <div className="grid grid-cols-3 gap-4">
+          <div className="bg-white p-4 rounded-xl border border-[#0d6b5e]/10">
+            <p className="text-sm text-[#4d7068] mb-1">Pendentes</p>
+            <p className="text-3xl text-[#0a1a17]" style={{ fontWeight: 700 }}>
+              {aulasPendentes.length}
+            </p>
+          </div>
+          <div className="bg-white p-4 rounded-xl border border-[#0d6b5e]/10">
+            <p className="text-sm text-[#4d7068] mb-1">Confirmadas</p>
+            <p className="text-3xl text-[#0d6b5e]" style={{ fontWeight: 700 }}>
+              {aulasConfirmadas.length}
+            </p>
+          </div>
+          <div className="bg-white p-4 rounded-xl border border-red-200">
+            <p className="text-sm text-[#4d7068] mb-1">Rejeitadas</p>
+            <p className="text-3xl text-red-600" style={{ fontWeight: 700 }}>
+              {aulasRejeitadas.length}
+            </p>
+          </div>
         </div>
-        <div className="bg-white p-4 rounded-xl border border-red-200">
-          <p className="text-sm text-[#4d7068] mb-1">Rejeitadas</p>
-          <p className="text-3xl text-red-600" style={{ fontWeight: 700 }}>
-            {aulasRejeitadas.length}
-          </p>
-        </div>
-      </div>
+      )}
 
       {/* Próximas Aulas */}
       {proximasAulas.length > 0 && (
@@ -165,16 +184,16 @@ export function AlunoAgendaView({ aulas, nomeAluno }: AlunoAgendaViewProps) {
         </div>
       </div>
 
-      {/* Mensagem quando não há próximas aulas */}
-      {proximasAulas.length === 0 && aulasConfirmadas.length === 0 && (
-        <div className="bg-white p-12 rounded-2xl text-center border border-[#0d6b5e]/10">
-          <Calendar className="w-16 h-16 text-[#0d6b5e]/20 mx-auto mb-4" />
-          <p className="text-[#4d7068] mb-2">
-            Não tem aulas confirmadas agendadas
-          </p>
-          <p className="text-sm text-[#4d7068]">
-            Peça ao seu encarregado para agendar uma aula
-          </p>
+      {/* Nenhuma próxima aula mas há pendentes */}
+      {!semAulas && proximasAulas.length === 0 && aulasPendentes.length > 0 && (
+        <div className="bg-amber-50 rounded-xl p-4 border border-amber-200">
+          <div className="flex items-start gap-3">
+            <Info className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
+            <p className="text-sm text-amber-900">
+              Tens {aulasPendentes.length} aula{aulasPendentes.length > 1 ? 's' : ''} a aguardar aprovação da direção.
+              Receberás uma notificação quando for confirmada.
+            </p>
+          </div>
         </div>
       )}
     </div>

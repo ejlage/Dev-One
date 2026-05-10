@@ -1,4 +1,5 @@
 import prisma from "../config/db.js";
+import { createNotificacao } from "./notificacoes.service.js";
 
 const mapGrupo = (g) => ({
   id: String(g.idgrupo),
@@ -23,7 +24,7 @@ const mapGrupo = (g) => ({
   requisitos: g.requisitos || undefined,
   criadaEm: new Date().toISOString(),
   alunosInscritos: (g.alunogrupo || []).map(ag => ({
-    alunoId: String(ag.alunoidaluno),
+    alunoId: String(ag.aluno?.utilizadoriduser ?? ag.alunoidaluno),
     alunoNome: ag.aluno?.utilizador?.nome || '',
     encarregadoId: '',
     inscritoEm: new Date().toISOString(),
@@ -146,6 +147,37 @@ export const deleteTurma = async (id) => {
   return { message: "Turma eliminada com sucesso" };
 };
 
+async function getGrupoIntervenientes(turmaId) {
+  const grupo = await prisma.grupo.findUnique({
+    where: { idgrupo: turmaId },
+    include: {
+      alunogrupo: {
+        include: {
+          aluno: {
+            include: {
+              encarregadoeducacao: { include: { utilizador: true } },
+              utilizador: true,
+            }
+          }
+        }
+      }
+    }
+  });
+  if (!grupo) return { professorUserId: null, encarregadoIds: [], nomeGrupo: '' };
+
+  let professorUserId = null;
+  if (grupo.professorId) {
+    const prof = await prisma.professor.findUnique({ where: { utilizadoriduser: grupo.professorId } });
+    if (prof) professorUserId = prof.utilizadoriduser;
+  }
+
+  const encarregadoIds = grupo.alunogrupo
+    .map(ag => ag.aluno?.encarregadoeducacao?.utilizadoriduser)
+    .filter(Boolean);
+
+  return { professorUserId, encarregadoIds: [...new Set(encarregadoIds)], nomeGrupo: grupo.nomegrupo };
+}
+
 export const enrollAluno = async (turmaId, alunoId) => {
   const turma = await prisma.grupo.findUnique({
     where: { idgrupo: turmaId }
@@ -185,24 +217,36 @@ export const enrollAluno = async (turmaId, alunoId) => {
       alunoidaluno: aluno.idaluno
     },
     include: {
-      aluno: {
-        include: {
-          utilizador: true
-        }
-      },
+      aluno: { include: { utilizador: true, encarregadoeducacao: true } },
       grupo: true
     }
   });
 
+  const nomeGrupo = turma.nomegrupo;
+  const alunoNome = enrollment.aluno?.utilizador?.nome || `Aluno #${alunoId}`;
+
+  // Notificar encarregado do aluno inscrito
+  const encId = enrollment.aluno?.encarregadoeducacao?.utilizadoriduser;
+  if (encId) {
+    await createNotificacao(encId, `O seu educando ${alunoNome} foi inscrito no grupo "${nomeGrupo}".`, 'GRUPO_INSCRICAO');
+  }
+
+  // Notificar professor do grupo
+  if (turma.professorId) {
+    await createNotificacao(turma.professorId, `Um novo aluno (${alunoNome}) foi inscrito no grupo "${nomeGrupo}".`, 'GRUPO_INSCRICAO');
+  }
+
   return enrollment;
 };
 
-export const removeAluno = async (turmaId, alunoId) => {
+export const removeAluno = async (turmaId, userId) => {
+  const alunoRec = await prisma.aluno.findFirst({
+    where: { utilizadoriduser: userId }
+  });
+  const alunoId = alunoRec ? alunoRec.idaluno : userId;
+
   const existingEnrollment = await prisma.alunogrupo.findFirst({
-    where: {
-      grupoidgrupo: turmaId,
-      alunoidaluno: alunoId
-    }
+    where: { grupoidgrupo: turmaId, alunoidaluno: alunoId }
   });
 
   if (!existingEnrollment) {
@@ -213,6 +257,23 @@ export const removeAluno = async (turmaId, alunoId) => {
     where: { idalunogrupo: existingEnrollment.idalunogrupo }
   });
 
+  // Notificações após remoção
+  const grupoInfo = await prisma.grupo.findUnique({ where: { idgrupo: turmaId } });
+  const alunoInfo = await prisma.aluno.findUnique({
+    where: { idaluno: alunoId },
+    include: { utilizador: true, encarregadoeducacao: true }
+  });
+  const nomeGrupo = grupoInfo?.nomegrupo || `Grupo #${turmaId}`;
+  const alunoNome = alunoInfo?.utilizador?.nome || `Aluno #${userId}`;
+
+  const encId = alunoInfo?.encarregadoeducacao?.utilizadoriduser;
+  if (encId) {
+    await createNotificacao(encId, `O seu educando ${alunoNome} foi removido do grupo "${nomeGrupo}".`, 'GRUPO_REMOCAO');
+  }
+  if (grupoInfo?.professorId) {
+    await createNotificacao(grupoInfo.professorId, `O aluno ${alunoNome} foi removido do grupo "${nomeGrupo}".`, 'GRUPO_REMOCAO');
+  }
+
   return { message: "Aluno removido da turma com sucesso" };
 };
 
@@ -220,11 +281,37 @@ export const closeTurma = async (id) => {
   const turma = await prisma.grupo.findUnique({ where: { idgrupo: id } });
   if (!turma) throw new Error("Turma não encontrada");
   const newStatus = turma.status === 'ABERTA' ? 'FECHADA' : 'ABERTA';
-  return prisma.grupo.update({ where: { idgrupo: id }, data: { status: newStatus } });
+  const updated = await prisma.grupo.update({ where: { idgrupo: id }, data: { status: newStatus } });
+
+  const { professorUserId, encarregadoIds, nomeGrupo } = await getGrupoIntervenientes(id);
+  if (newStatus === 'FECHADA') {
+    if (professorUserId) {
+      await createNotificacao(professorUserId, `O grupo "${nomeGrupo}" foi encerrado para novas inscrições.`, 'GRUPO_FECHADO');
+    }
+    for (const encId of encarregadoIds) {
+      await createNotificacao(encId, `As inscrições do grupo "${nomeGrupo}" foram encerradas pela Direção.`, 'GRUPO_FECHADO');
+    }
+  } else {
+    if (professorUserId) {
+      await createNotificacao(professorUserId, `O grupo "${nomeGrupo}" foi reaberto para inscrições.`, 'GRUPO_ABERTO');
+    }
+  }
+
+  return updated;
 };
 
 export const archiveTurma = async (id) => {
   const turma = await prisma.grupo.findUnique({ where: { idgrupo: id } });
   if (!turma) throw new Error("Turma não encontrada");
-  return prisma.grupo.update({ where: { idgrupo: id }, data: { status: 'ARQUIVADA' } });
+  const updated = await prisma.grupo.update({ where: { idgrupo: id }, data: { status: 'ARQUIVADA' } });
+
+  const { professorUserId, encarregadoIds, nomeGrupo } = await getGrupoIntervenientes(id);
+  if (professorUserId) {
+    await createNotificacao(professorUserId, `O grupo "${nomeGrupo}" foi arquivado pela Direção.`, 'GRUPO_ARQUIVADO');
+  }
+  for (const encId of encarregadoIds) {
+    await createNotificacao(encId, `O grupo "${nomeGrupo}" foi arquivado. O seu educando já não terá aulas neste grupo.`, 'GRUPO_ARQUIVADO');
+  }
+
+  return updated;
 };

@@ -2,6 +2,15 @@
 
 export type UserRole = 'ALUNO' | 'ENCARREGADO' | 'PROFESSOR' | 'DIRECAO';
 
+export interface Notificacao {
+  idnotificacao: number;
+  mensagem: string;
+  tipo: string;
+  lida: boolean;
+  datanotificacao: string;
+  dataleitura: string | null;
+}
+
 export type AulaStatus = 'PENDENTE' | 'CONFIRMADA' | 'REJEITADA' | 'REALIZADA';
 
 export type FigurinoStatus = 'DISPONIVEL' | 'ALUGADO' | 'VENDIDO';
@@ -46,6 +55,12 @@ export interface PedidoAula {
   dataValidacao?: string;
   // Suporte a múltiplos alunos na mesma aula
   participantes?: { alunoId: string; alunoNome: string; encarregadoId?: string }[];
+  maxParticipantes?: number;
+  privacidade?: boolean;
+  encarregadoNome?: string;
+  sugestaoestado?: string | null;
+  novadata?: string | null;
+  novaData?: string | null;
 }
 
 export interface Figurino {
@@ -80,6 +95,7 @@ export interface AnuncioMarketplace {
   espetaculoId?: string; // Se é para um espetáculo específico
   espetaculoNome?: string;
   stockAssociadoId?: string; // ID do figurino do stock (se é aluguer da escola)
+  motivoRejeicao?: string | null;
 }
 
 export interface ReservaFigurino {
@@ -120,9 +136,12 @@ export interface SlotDisponibilidade {
   horaInicio: string;
   horaFim: string;
   duracao: number;
+  maxDuracao: number;
+  minutosOcupados: number;
   estudioId: string;
   estudioNome: string;
   modalidade: string;
+  modalidadeId?: string;
 }
 
 export type TurmaStatus = 'ABERTA' | 'FECHADA' | 'ARQUIVADA';

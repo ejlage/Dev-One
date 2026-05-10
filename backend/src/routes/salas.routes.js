@@ -10,21 +10,21 @@ export default async function salasRoutes(fastify) {
 
   fastify.post("/", async (req, reply) => {
     if (!hasRole(req.user.role, "DIRECAO", "PROFESSOR")) {
-      return reply.status(403).send({ success: false, error: "Acesso negated" });
+      return reply.status(403).send({ success: false, error: "Acesso negado" });
     }
     return salasController.createSala(req, reply);
   });
 
   fastify.put("/:id", async (req, reply) => {
     if (!hasRole(req.user.role, "DIRECAO", "PROFESSOR")) {
-      return reply.status(403).send({ success: false, error: "Acesso negated" });
+      return reply.status(403).send({ success: false, error: "Acesso negado" });
     }
     return salasController.updateSala(req, reply);
   });
 
   fastify.delete("/:id", async (req, reply) => {
     if (!hasRole(req.user.role, "DIRECAO")) {
-      return reply.status(403).send({ success: false, error: "Acesso negated" });
+      return reply.status(403).send({ success: false, error: "Acesso negado" });
     }
     return salasController.deleteSala(req, reply);
   });

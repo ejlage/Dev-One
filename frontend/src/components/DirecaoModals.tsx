@@ -23,13 +23,32 @@ const DIAS_SEMANA = [
   { num: 6, label: 'Sábado',        short: 'Sáb' },
 ];
 
-function getProximasDatas(slot: SlotDisponibilidade, aulasExistentes: PedidoAula[], ignorarAulaId?: string) {
+function horasConflito(hInicioA: string, hFimA: string, hInicioB: string, hFimB: string) {
+  if (!hInicioA || !hFimA || !hInicioB || !hFimB) return false;
+  return hInicioA < hFimB && hFimA > hInicioB;
+}
+
+function getProximasDatas(slot: any, aulasExistentes: PedidoAula[], ignorarAulaId?: string) {
+  const slotData = slot.data as string | undefined;
+  if (slotData) {
+    const hoje = startOfDay(new Date());
+    const slotDate = startOfDay(new Date(slotData + 'T12:00:00'));
+    if (slotDate <= hoje) return [];
+    const temConflito = aulasExistentes.some(a =>
+      a.id !== ignorarAulaId &&
+      a.data === slotData &&
+      (a.status === 'CONFIRMADA' || a.status === 'PENDENTE') &&
+      (a.professorId === slot.professorId || a.estudioId === slot.estudioId) &&
+      horasConflito(slot.horaInicio, slot.horaFim, a.horaInicio, a.horaFim)
+    );
+    return [{ data: slotData, disponivel: !temConflito }];
+  }
+  // Fallback recorrente (legacy diaSemana)
   const hoje = startOfDay(new Date());
   const resultados: { data: string; disponivel: boolean }[] = [];
   for (let i = 1; i <= 90 && resultados.length < 5; i++) {
     const data = addDays(hoje, i);
-    const jsDia = data.getDay();
-    if (jsDia === slot.diaSemana) {
+    if (data.getDay() === slot.diaSemana) {
       const dataStr = format(data, 'yyyy-MM-dd');
       const temConflito = aulasExistentes.some(a =>
         a.id !== ignorarAulaId &&
@@ -100,26 +119,26 @@ export function DirecaoModals({
   const aulaOriginal = aulas.find(a => a.id === direcaoCancelarModal);
   if (!aulaOriginal) return null;
 
-  // Slots do professor desta aula
+  // Slots do professor desta aula (agrupados por data específica ou diaSemana legacy)
   const slotsDoProf = professorSlots.filter(s => s.professorId === aulaOriginal.professorId);
-  const slotsPorDia: Record<number, SlotDisponibilidade[]> = {};
-  slotsDoProf.forEach(slot => {
-    if (!slotsPorDia[slot.diaSemana]) slotsPorDia[slot.diaSemana] = [];
-    slotsPorDia[slot.diaSemana].push(slot);
+  const slotsPorDia: Record<string, any[]> = {};
+  slotsDoProf.forEach((slot: any) => {
+    const key = slot.data || String(slot.diaSemana);
+    if (!slotsPorDia[key]) slotsPorDia[key] = [];
+    slotsPorDia[key].push(slot);
   });
-  const diasComSlots = Object.keys(slotsPorDia).map(Number).sort();
+  const diasComSlots = Object.keys(slotsPorDia).sort();
 
   const handleConfirmarRemarcacao = () => {
     if (!dataSelecionada || !onRemarcar) return;
     const { slot, data } = dataSelecionada;
-    const estudio = estudos.find(e => String(e.id) === String(slot.estudioId));
     onRemarcar(
       aulaOriginal.id,
       data,
       slot.horaInicio,
       slot.horaFim,
       slot.estudioId,
-      estudio?.nome ?? slot.estudioNome
+      slot.estudioNome
     );
     fecharModal();
   };
@@ -208,16 +227,19 @@ export function DirecaoModals({
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {diasComSlots.map(diaSemana => {
-                    const diaInfo = DIAS_SEMANA.find(d => d.num === diaSemana);
-                    const slots = slotsPorDia[diaSemana];
+                  {diasComSlots.map(dateKey => {
+                    const isDateKey = dateKey.includes('-');
+                    const dateLabel = isDateKey
+                      ? new Date(dateKey + 'T12:00:00').toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+                      : (DIAS_SEMANA.find(d => d.num === Number(dateKey))?.label ?? dateKey);
+                    const slots = slotsPorDia[dateKey];
                     return (
-                      <div key={diaSemana} className="border border-[#0d6b5e]/10 rounded-2xl overflow-hidden">
-                        {/* Cabeçalho do dia */}
+                      <div key={dateKey} className="border border-[#0d6b5e]/10 rounded-2xl overflow-hidden">
+                        {/* Cabeçalho da data */}
                         <div className="bg-[#f4f9f8] px-5 py-3 flex items-center gap-2">
                           <div className="w-2 h-2 rounded-full bg-[#c9a84c]" />
                           <span className="text-sm text-[#0a1a17]" style={{ fontWeight: 600 }}>
-                            {diaInfo?.label}
+                            {dateLabel}
                           </span>
                         </div>
 
@@ -260,7 +282,7 @@ export function DirecaoModals({
                                 {isExpanded && (
                                   <div className="px-5 pb-5 bg-[#f4f9f8]/40 border-t border-[#0d6b5e]/5">
                                     <p className="text-xs text-[#4d7068] mt-3 mb-3" style={{ fontWeight: 500 }}>
-                                      Próximas 5 ocorrências:
+                                      Data disponível:
                                     </p>
                                     <div className="flex flex-wrap gap-2">
                                       {proximasDatas.map(({ data, disponivel }) => {

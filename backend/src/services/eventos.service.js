@@ -1,10 +1,17 @@
 import prisma from "../config/db.js";
+import { createNotificacao } from "./notificacoes.service.js";
+
+async function notificarTodosUtilizadores(mensagem, tipo) {
+  const users = await prisma.utilizador.findMany({ select: { iduser: true } });
+  await Promise.all(users.map(u => createNotificacao(u.iduser, mensagem, tipo)));
+}
 
 const mapEvento = (e) => ({
   id: String(e.idevento),
   titulo: e.titulo,
   descricao: e.descricao || '',
   data: e.dataevento ? e.dataevento.toISOString().split('T')[0] : '',
+  datafim: e.datafim ? e.datafim.toISOString().split('T')[0] : null,
   local: e.localizacao || '',
   imagem: e.imagem || '',
   linkBilhetes: e.linkbilhetes || '',
@@ -25,20 +32,25 @@ export const getEventoById = async (id) => {
 };
 
 export const createEvento = async (data, userId) => {
-  const { titulo, descricao, data: dataevento, local, imagem, linkBilhetes, destaque } = data;
+  const { titulo, descricao, data: dataevento, datafim, local, imagem, linkBilhetes, destaque, publicado } = data;
+  const isPublicado = publicado === true || publicado === 'true';
   const evento = await prisma.evento.create({
     data: {
       titulo,
       descricao: descricao || '',
       dataevento: new Date(dataevento),
+      datafim: datafim ? new Date(datafim) : null,
       localizacao: local || '',
       imagem: imagem || '',
       linkbilhetes: linkBilhetes || '',
       destaque: destaque === true || destaque === 'true',
-      publicado: false,
+      publicado: isPublicado,
       direcaoutilizadoriduser: userId ? parseInt(userId) : null,
     },
   });
+  if (isPublicado) {
+    await notificarTodosUtilizadores(`Novo evento: "${titulo}" — ${new Date(dataevento).toLocaleDateString('pt-PT')}`, 'EVENTO_PUBLICADO');
+  }
   return mapEvento(evento);
 };
 
@@ -50,6 +62,7 @@ export const updateEvento = async (id, data) => {
   if (data.titulo !== undefined) updateData.titulo = data.titulo;
   if (data.descricao !== undefined) updateData.descricao = data.descricao;
   if (data.data !== undefined) updateData.dataevento = new Date(data.data);
+  if (data.datafim !== undefined) updateData.datafim = data.datafim ? new Date(data.datafim) : null;
   if (data.local !== undefined) updateData.localizacao = data.local;
   if (data.imagem !== undefined) updateData.imagem = data.imagem;
   if (data.linkBilhetes !== undefined) updateData.linkbilhetes = data.linkBilhetes;
@@ -57,6 +70,14 @@ export const updateEvento = async (id, data) => {
   if (data.publicado !== undefined) updateData.publicado = data.publicado === true || data.publicado === 'true';
 
   const evento = await prisma.evento.update({ where: { idevento: id }, data: updateData });
+
+  const dataAlterou = data.data !== undefined &&
+    exists.dataevento.toISOString().split('T')[0] !== new Date(data.data).toISOString().split('T')[0];
+  if (dataAlterou && exists.publicado) {
+    const novaData = new Date(data.data).toLocaleDateString('pt-PT');
+    await notificarTodosUtilizadores(`O evento "${exists.titulo}" foi remarcado para ${novaData}`, 'EVENTO_REMARCADO');
+  }
+
   return mapEvento(evento);
 };
 
@@ -74,5 +95,7 @@ export const publishEvento = async (id) => {
     where: { idevento: id },
     data: { publicado: true },
   });
+  const dataStr = exists.dataevento.toLocaleDateString('pt-PT');
+  await notificarTodosUtilizadores(`Novo evento: "${exists.titulo}" — ${dataStr}`, 'EVENTO_PUBLICADO');
   return mapEvento(evento);
 };

@@ -132,23 +132,35 @@ export const sugerirNovaData = async (req, reply) => {
   try {
     const { id } = req.params;
     const { novaData } = req.body;
-    
     if (!novaData) {
       return reply.status(400).send({ success: false, error: 'novaData é obrigatório' });
     }
-    
     const pedido = await aulasService.sugerirNovaData(id, novaData);
-    
-    if (pedido && pedido.encarregadoeducacao) {
-      const { createNotificacao } = await import('../services/notificacoes.service.js');
-      await createNotificacao(
-        pedido.encarregadoeducacao.utilizadoriduser,
-        `O professor sugeriu uma nova data para a aula: ${new Date(novaData).toLocaleDateString('pt-PT')}`,
-        'SUGESTAO_NOVA_DATA'
-      );
-    }
-    
     return reply.send({ success: true, data: pedido });
+  } catch (err) {
+    return reply.status(400).send({ success: false, error: err.message });
+  }
+};
+
+export const responderSugestaoDirecao = async (req, reply) => {
+  try {
+    const { id } = req.params;
+    const { aceitar, novaData } = req.body;
+    if (aceitar === undefined) {
+      return reply.status(400).send({ success: false, error: 'Campo "aceitar" é obrigatório' });
+    }
+    const resultado = await aulasService.responderSugestaoDirecao(id, aceitar, req.user.id, novaData);
+    return reply.send({ success: true, data: resultado });
+  } catch (err) {
+    return reply.status(400).send({ success: false, error: err.message });
+  }
+};
+
+export const pedirRemarcacao = async (req, reply) => {
+  try {
+    const { id } = req.params;
+    const resultado = await aulasService.pedirRemarcacao(id, req.user.id);
+    return reply.send({ success: true, data: resultado });
   } catch (err) {
     return reply.status(400).send({ success: false, error: err.message });
   }

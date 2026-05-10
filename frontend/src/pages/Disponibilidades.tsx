@@ -8,15 +8,14 @@ import {
 import { toast } from 'sonner';
 import { Toaster } from '../components/ui/sonner';
 
+
 interface Disponibilidade {
-  iddisponibilidade_mensal: number;
-  professorutilizadoriduser: number;
+  id: string;
   modalidadesprofessoridmodalidadeprofessor: number;
-  diadasemana: number;
+  data: string;
   horainicio: string;
   horafim: string;
   ativo: boolean;
-  modalidadeidmodalidade?: number;
   modalidade_nome?: string;
 }
 
@@ -25,15 +24,6 @@ interface Modalidade {
   idmodalidade: number;
   modalidade_nome: string;
 }
-
-const DIAS_SEMANA = [
-  { num: 1, label: 'Segunda-feira', short: 'Seg' },
-  { num: 2, label: 'Terça-feira', short: 'Ter' },
-  { num: 3, label: 'Quarta-feira', short: 'Qua' },
-  { num: 4, label: 'Quinta-feira', short: 'Qui' },
-  { num: 5, label: 'Sexta-feira', short: 'Sex' },
-  { num: 6, label: 'Sábado', short: 'Sáb' },
-];
 
 const HORARIOS = [
   '08:00', '09:00', '10:00', '11:00', '12:00',
@@ -50,7 +40,7 @@ export function Disponibilidades() {
   const [editId, setEditId] = useState<number | null>(null);
   const [formData, setFormData] = useState({
     modalidadesprofessoridmodalidadeprofessor: '',
-    diadasemana: '',
+    data: '',
     horainicio: '',
     horafim: ''
   });
@@ -63,15 +53,12 @@ export function Disponibilidades() {
 
   const fetchData = async () => {
     try {
-      console.log('Fetching professor data...');
       const modRes = await api.getProfessorModalidades();
-      console.log('Modalidades response:', modRes);
       if (modRes.success) {
         setModalidades(modRes.data);
       }
-      
-      const dispRes = await api.getProfessorDisponibilidades();
-      console.log('Disponibilidades response:', dispRes);
+
+      const dispRes = await api.getMyDisponibilidades();
       if (dispRes.success) setDisponibilidades(dispRes.data);
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -84,16 +71,27 @@ export function Disponibilidades() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.modalidadesprofessoridmodalidadeprofessor || !formData.diadasemana || 
+    if (!formData.modalidadesprofessoridmodalidadeprofessor || !formData.data ||
         !formData.horainicio || !formData.horafim) {
       toast.error('Preencha todos os campos');
+      return;
+    }
+
+    const now = new Date();
+    const selectedDate = new Date(`${formData.data}T${formData.horainicio}`);
+    if (selectedDate <= now) {
+      toast.error(
+        selectedDate.toDateString() === now.toDateString()
+          ? 'A hora de início deve ser posterior à hora atual'
+          : 'A data não pode ser no passado'
+      );
       return;
     }
 
     try {
       const data = {
         modalidadesprofessoridmodalidadeprofessor: parseInt(formData.modalidadesprofessoridmodalidadeprofessor),
-        diadasemana: parseInt(formData.diadasemana),
+        data: formData.data,
         horainicio: formData.horainicio,
         horafim: formData.horafim
       };
@@ -109,7 +107,7 @@ export function Disponibilidades() {
         toast.success(editId ? 'Disponibilidade atualizada' : 'Disponibilidade criada');
         setShowForm(false);
         setEditId(null);
-        setFormData({ modalidadesprofessoridmodalidadeprofessor: '', diadasemana: '', horainicio: '', horafim: '' });
+        setFormData({ modalidadesprofessoridmodalidadeprofessor: '', data: '', horainicio: '', horafim: '' });
         fetchData();
       }
     } catch (error) {
@@ -131,19 +129,24 @@ export function Disponibilidades() {
     }
   };
 
-  const handleEdit = (disp: Disponibilidade) => {
+const handleEdit = (disp: Disponibilidade) => {
     setFormData({
-      modalidadesprofessoridmodalidadeprofessor: disp.modalidadesprofessoridmodalidadeprofessor.toString(),
-      diadasemana: disp.diadasemana.toString(),
+      modalidadesprofessoridmodalidadeprofessor: String(disp.modalidadesprofessoridmodalidadeprofessor),
+      data: disp.data,
       horainicio: disp.horainicio,
       horafim: disp.horafim
     });
-    setEditId(disp.iddisponibilidade_mensal);
+    setEditId(Number(disp.id));
     setShowForm(true);
   };
 
-  const getDiaLabel = (num: number) => {
-    return DIAS_SEMANA.find(d => d.num === num)?.label || num.toString();
+  const formatDataDisp = (dateStr: string) => {
+    if (!dateStr) return '';
+    try {
+      return new Date(dateStr + 'T00:00:00').toLocaleDateString('pt-PT', {
+        weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+      });
+    } catch { return dateStr; }
   };
 
   if (!user || user.role !== 'PROFESSOR') {
@@ -172,7 +175,7 @@ export function Disponibilidades() {
               </p>
             </div>
             <button
-              onClick={() => { setShowForm(!showForm); if (!showForm) { setEditId(null); setFormData({ modalidadesprofessoridmodalidadeprofessor: '', diadasemana: '', horainicio: '', horafim: '' }); }}}
+              onClick={() => { setShowForm(!showForm); if (!showForm) { setEditId(null); setFormData({ modalidadesprofessoridmodalidadeprofessor: '', data: '', horainicio: '', horafim: '' }); }}}
               className="flex items-center gap-2 bg-[#c9a84c] text-[#0a1a17] px-5 py-2.5 rounded-lg hover:bg-[#e8c97a] transition-colors"
               style={{ fontWeight: 600 }}
             >
@@ -211,18 +214,15 @@ export function Disponibilidades() {
                   </div>
 
                   <div>
-                    <label className="block text-sm text-[#4d7068] mb-1">Dia da Semana *</label>
-                    <select
-                      value={formData.diadasemana}
-                      onChange={e => setFormData({ ...formData, diadasemana: e.target.value })}
+                    <label className="block text-sm text-[#4d7068] mb-1">Data *</label>
+                    <input
+                      type="date"
+                      value={formData.data}
+                      min={new Date().toISOString().split('T')[0]}
+                      onChange={e => setFormData({ ...formData, data: e.target.value })}
                       className="w-full px-3 py-2 border border-[#0d6b5e]/20 rounded-lg bg-[#f4f9f8] text-[#0a1a17] focus:outline-none focus:border-[#0d6b5e]"
                       required
-                    >
-                      <option value="">Selecionar dia...</option>
-                      {DIAS_SEMANA.map(d => (
-                        <option key={d.num} value={d.num}>{d.label}</option>
-                      ))}
-                    </select>
+                    />
                   </div>
 
                   <div>
@@ -234,7 +234,14 @@ export function Disponibilidades() {
                       required
                     >
                       <option value="">Selecionar hora...</option>
-                      {HORARIOS.map(h => (
+                      {HORARIOS.filter(h => {
+                        if (!formData.data) return true;
+                        const today = new Date().toISOString().split('T')[0];
+                        if (formData.data !== today) return true;
+                        const now = new Date();
+                        const [hh, mm] = h.split(':').map(Number);
+                        return hh * 60 + mm > now.getHours() * 60 + now.getMinutes();
+                      }).map(h => (
                         <option key={h} value={h}>{h}</option>
                       ))}
                     </select>
@@ -283,56 +290,68 @@ export function Disponibilidades() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {disponibilidades.map(disp => (
-                  <div
-                    key={disp.iddisponibilidade_mensal}
-                    className={`bg-white rounded-2xl shadow-sm border p-6 ${
-                      disp.ativo ? 'border-[#0d6b5e]/10' : 'border-red-200 opacity-60'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-5 h-5 text-[#0d6b5e]" />
-                        <span className="text-lg text-[#0a1a17]" style={{ fontWeight: 600 }}>
-                          {getDiaLabel(disp.diadasemana)}
-                        </span>
+                {disponibilidades.map(disp => {
+                  const nextDate = formatDataDisp(disp.data);
+                  return (
+                    <div
+                      key={disp.id}
+                      className={`bg-white rounded-2xl shadow-sm border p-6 ${
+                        disp.ativo ? 'border-[#0d6b5e]/10' : 'border-red-200 opacity-60'
+                      }`}
+                    >
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium ${
+                        disp.ativo ? 'bg-[#0d6b5e]/10 text-[#0d6b5e]' : 'bg-red-50 text-red-600'
+                      }`}>
+                        <span className={`w-2 h-2 rounded-full ${disp.ativo ? 'bg-[#0d6b5e]' : 'bg-red-400'}`} />
+                        {disp.modalidade_nome || 'Modalidade não definida'}
+                      </span>
+
+                      <div className="flex items-start justify-between mb-3 mt-3">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-5 h-5 text-[#0d6b5e]" />
+                            <span className="text-lg text-[#0a1a17]" style={{ fontWeight: 600 }}>
+                              {nextDate}
+                            </span>
+                          </div>
+                        </div>
+                        {!disp.ativo && (
+                          <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
+                            Inativo
+                          </span>
+                        )}
                       </div>
-                      {!disp.ativo && (
-                        <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
-                          Inativo
-                        </span>
-                      )}
-                    </div>
 
-                    <div className="flex items-center gap-2 mb-3">
-                      <Clock className="w-4 h-4 text-[#0d6b5e]" />
-                      <span className="text-[#4d7068]">
-                        {disp.horainicio} - {disp.horafim}
-                      </span>
-                    </div>
+                      <div className="flex items-center gap-2 mb-4 p-3 bg-[#f4f9f8] rounded-xl">
+                        <Clock className="w-5 h-5 text-[#0d6b5e]" />
+                        <div>
+                          <span className="text-lg text-[#0a1a17]" style={{ fontWeight: 600 }}>
+                            {disp.horainicio}
+                          </span>
+                          <span className="text-lg text-[#4d7068]"> — </span>
+                          <span className="text-lg text-[#0a1a17]" style={{ fontWeight: 600 }}>
+                            {disp.horafim}
+                          </span>
+                        </div>
+                      </div>
 
-                    <div className="flex items-center gap-2 mb-4">
-                      <span className="text-sm bg-[#f4f9f8] text-[#0d6b5e] px-2 py-1 rounded-full">
-                        {disp.modalidade_nome}
-                      </span>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleEdit(disp)}
+                          className="flex items-center gap-1 text-sm text-[#0d6b5e] hover:underline"
+                        >
+                          <Edit className="w-4 h-4" /> Editar
+                        </button>
+                        <button
+                          onClick={() => handleDelete(Number(disp.id))}
+                          className="flex items-center gap-1 text-sm text-red-600 hover:underline"
+                        >
+                          <Trash2 className="w-4 h-4" /> Eliminar
+                        </button>
+                      </div>
                     </div>
-
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleEdit(disp)}
-                        className="flex items-center gap-1 text-sm text-[#0d6b5e] hover:underline"
-                      >
-                        <Edit className="w-4 h-4" /> Editar
-                      </button>
-                      <button
-                        onClick={() => handleDelete(disp.iddisponibilidade_mensal)}
-                        className="flex items-center gap-1 text-sm text-red-600 hover:underline"
-                      >
-                        <Trash2 className="w-4 h-4" /> Eliminar
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </>

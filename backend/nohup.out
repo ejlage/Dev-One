@@ -1,0 +1,21 @@
+[Scheduler] Pedido de Aula scheduler started
+(node:38470) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+{"level":30,"time":1777897740315,"pid":38470,"hostname":"ugrt-LIFEBOOK-U9311X","msg":"Server listening at http://0.0.0.0:3000"}
+Servidor a correr em http://localhost:3000
+{"level":30,"time":1777897743126,"pid":38470,"hostname":"ugrt-LIFEBOOK-U9311X","reqId":"req-1","req":{"method":"GET","url":"/health","hostname":"localhost:3000","remoteAddress":"127.0.0.1","remotePort":36948},"msg":"incoming request"}
+{"level":30,"time":1777897743126,"pid":38470,"hostname":"ugrt-LIFEBOOK-U9311X","reqId":"req-1","msg":"Route GET:/health not found"}
+{"level":30,"time":1777897743128,"pid":38470,"hostname":"ugrt-LIFEBOOK-U9311X","reqId":"req-1","res":{"statusCode":404},"responseTime":2.2888000002130866,"msg":"request completed"}
+{"level":30,"time":1777897749075,"pid":38470,"hostname":"ugrt-LIFEBOOK-U9311X","reqId":"req-2","req":{"method":"GET","url":"/docs/json","hostname":"localhost:3000","remoteAddress":"127.0.0.1","remotePort":45110},"msg":"incoming request"}
+{"level":30,"time":1777897749075,"pid":38470,"hostname":"ugrt-LIFEBOOK-U9311X","reqId":"req-2","msg":"Route GET:/docs/json not found"}
+{"level":30,"time":1777897749075,"pid":38470,"hostname":"ugrt-LIFEBOOK-U9311X","reqId":"req-2","res":{"statusCode":404},"responseTime":0.29342500027269125,"msg":"request completed"}
+{"level":30,"time":1777897755806,"pid":38470,"hostname":"ugrt-LIFEBOOK-U9311X","reqId":"req-3","req":{"method":"POST","url":"/api/auth/login","hostname":"localhost:3000","remoteAddress":"127.0.0.1","remotePort":48792},"msg":"incoming request"}
+{"level":30,"time":1777897755882,"pid":38470,"hostname":"ugrt-LIFEBOOK-U9311X","reqId":"req-3","res":{"statusCode":200},"responseTime":75.338626999408,"msg":"request completed"}
+{"level":30,"time":1777897768548,"pid":38470,"hostname":"ugrt-LIFEBOOK-U9311X","reqId":"req-4","req":{"method":"POST","url":"/api/auth/login","hostname":"localhost:3000","remoteAddress":"127.0.0.1","remotePort":49596},"msg":"incoming request"}
+{"level":30,"time":1777897768597,"pid":38470,"hostname":"ugrt-LIFEBOOK-U9311X","reqId":"req-4","res":{"statusCode":200},"responseTime":49.0134299993515,"msg":"request completed"}
+{"level":30,"time":1777897768605,"pid":38470,"hostname":"ugrt-LIFEBOOK-U9311X","reqId":"req-5","req":{"method":"GET","url":"/api/aluno/aulas","hostname":"localhost:3000","remoteAddress":"127.0.0.1","remotePort":49602},"msg":"incoming request"}
+{"level":30,"time":1777897768633,"pid":38470,"hostname":"ugrt-LIFEBOOK-U9311X","reqId":"req-5","res":{"statusCode":200},"responseTime":27.55566900037229,"msg":"request completed"}
+{"level":30,"time":1777897787455,"pid":38470,"hostname":"ugrt-LIFEBOOK-U9311X","reqId":"req-6","req":{"method":"OPTIONS","url":"/api/notificacoes/nao-lidas","hostname":"localhost:3000","remoteAddress":"127.0.0.1","remotePort":38322},"msg":"incoming request"}
+{"level":30,"time":1777897787455,"pid":38470,"hostname":"ugrt-LIFEBOOK-U9311X","reqId":"req-6","res":{"statusCode":204},"responseTime":0.3321780003607273,"msg":"request completed"}
+{"level":30,"time":1777897787456,"pid":38470,"hostname":"ugrt-LIFEBOOK-U9311X","reqId":"req-7","req":{"method":"GET","url":"/api/notificacoes/nao-lidas","hostname":"localhost:3000","remoteAddress":"127.0.0.1","remotePort":38322},"msg":"incoming request"}
+{"level":30,"time":1777897787457,"pid":38470,"hostname":"ugrt-LIFEBOOK-U9311X","reqId":"req-7","res":{"statusCode":401},"responseTime":0.5331959994509816,"msg":"request completed"}

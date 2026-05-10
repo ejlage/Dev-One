@@ -267,6 +267,24 @@ export async function cancelAula(id) {
 }
 
 export async function remarcarAula(id, newData, newHora) {
+  const agora = new Date();
+  const novaDataInput = new Date(newData);
+  const dataHojeStr = agora.toISOString().split('T')[0];
+  const novaDataStr = novaDataInput.toISOString().split('T')[0];
+  
+  if (novaDataStr < dataHojeStr) {
+    throw new Error('A data não pode ser no passado');
+  }
+  
+  if (novaDataStr === dataHojeStr && newHora) {
+    const [horaH, horaM] = newHora.split(':').map(Number);
+    const horaInput = horaH * 60 + horaM;
+    const horaAtual = agora.getHours() * 60 + agora.getMinutes();
+    if (horaInput <= horaAtual) {
+      throw new Error('A hora deve ser posterior à hora atual');
+    }
+  }
+  
   const pedido = await prisma.pedidodeaula.findUnique({
     where: { idpedidoaula: parseInt(id) },
     include: {
@@ -281,6 +299,36 @@ export async function remarcarAula(id, newData, newHora) {
   if (!pedido) throw new Error("Aula não encontrada");
 
   const professorUserId = pedido.disponibilidade_mensal?.professor?.utilizadoriduser;
+
+  // Server-side conflict check: same professor or same sala at same date/hora
+  if (professorUserId && newData && newHora) {
+    const conflitos = await prisma.$queryRaw`
+      SELECT pa.idpedidoaula FROM pedidodeaula pa
+      JOIN disponibilidade_mensal dm ON pa.disponibilidade_mensal_id = dm.iddisponibilidade_mensal
+      JOIN estado e ON pa.estadoidestado = e.idestado
+      WHERE dm.professorutilizadoriduser = ${professorUserId}
+      AND pa.data::date = ${newData}::date
+      AND pa.horainicio::time = ${newHora}::time
+      AND LOWER(e.tipoestado) IN ('pendente', 'confirmado', 'aprovado')
+      AND pa.idpedidoaula != ${parseInt(id)}
+    `;
+    if (conflitos.length > 0) {
+      throw new Error('O professor já tem uma aula marcada nesse horário');
+    }
+
+    const conflitosSala = await prisma.$queryRaw`
+      SELECT pa.idpedidoaula FROM pedidodeaula pa
+      JOIN estado e ON pa.estadoidestado = e.idestado
+      WHERE pa.salaidsala = ${pedido.salaidsala}
+      AND pa.data::date = ${newData}::date
+      AND pa.horainicio::time = ${newHora}::time
+      AND LOWER(e.tipoestado) IN ('pendente', 'confirmado', 'aprovado')
+      AND pa.idpedidoaula != ${parseInt(id)}
+    `;
+    if (conflitosSala.length > 0) {
+      throw new Error('A sala já está ocupada nesse horário');
+    }
+  }
 
   const tresHoras = new Date(Date.now() + 3 * 60 * 60 * 1000);
   const updated = await prisma.pedidodeaula.update({
@@ -331,35 +379,21 @@ export async function responderSugestaoProfessor(aulaId, aceitar, professorUserI
   const encarregadoUserId = pedido.encarregadoeducacao?.utilizadoriduser;
 
   if (!aceitar) {
-    const estadoCancelado = await prisma.estado.findFirst({
-      where: { tipoestado: { equals: 'Cancelado', mode: 'insensitive' } },
-    });
+    // Professor rejects: reset suggestion, keep aula state — Direção can propose again
     await prisma.pedidodeaula.update({
       where: { idpedidoaula: parseInt(aulaId) },
-      data: {
-        novadata: null,
-        novaDataLimite: null,
-        sugestaoestado: null,
-        ...(estadoCancelado && { estadoidestado: estadoCancelado.idestado }),
-      },
+      data: { novadata: null, novaDataLimite: null, sugestaoestado: null },
     });
 
     const direcao = await prisma.direcao.findFirst();
     if (direcao) {
       await createNotificacao(
         direcao.utilizadoriduser,
-        `O professor rejeitou a remarcação da aula #${aulaId}. A aula foi cancelada.`,
+        `O professor rejeitou a data proposta para a aula #${aulaId}. Pode propor uma nova data.`,
         'REMARCACAO_REJEITADA_PROFESSOR'
       );
     }
-    if (encarregadoUserId) {
-      await createNotificacao(
-        encarregadoUserId,
-        `A remarcação da aula #${aulaId} foi cancelada pelo professor.`,
-        'AULA_CANCELADA'
-      );
-    }
-    return { cancelada: true };
+    return { rejeitada: true };
   }
 
   const tresHoras = new Date(Date.now() + 3 * 60 * 60 * 1000);
@@ -523,19 +557,142 @@ export async function getEstadoAulaByName(nome) {
   });
 }
 
-export async function sugerirNovaData(pedidoId, novaData) {
+export async function pedirRemarcacao(pedidoId, professorUserId) {
+  const pedido = await prisma.pedidodeaula.findUnique({
+    where: { idpedidoaula: parseInt(pedidoId) },
+    include: {
+      disponibilidade_mensal: {
+        include: { professor: { include: { utilizador: true } } },
+      },
+    },
+  });
+  if (!pedido) throw new Error('Aula não encontrada');
+
+  const professorDaAula = pedido.disponibilidade_mensal?.professor?.utilizadoriduser;
+  if (professorDaAula && professorDaAula !== parseInt(professorUserId)) {
+    throw new Error('Não tem permissão para pedir remarcação desta aula');
+  }
+
   const tresHoras = new Date(Date.now() + 3 * 60 * 60 * 1000);
+  const updated = await prisma.pedidodeaula.update({
+    where: { idpedidoaula: parseInt(pedidoId) },
+    data: { novadata: null, novaDataLimite: tresHoras, sugestaoestado: 'AGUARDA_DIRECAO' },
+  });
+
+  const direcao = await prisma.direcao.findFirst();
+  if (direcao) {
+    const professorNome = pedido.disponibilidade_mensal?.professor?.utilizador?.nome || 'Professor';
+    await createNotificacao(
+      direcao.utilizadoriduser,
+      `O professor ${professorNome} pediu a remarcação da aula #${pedidoId}. Proponha uma nova data nas próximas 3 horas.`,
+      'SUGESTAO_REMARCACAO_DIRECAO'
+    );
+  }
+  return updated;
+}
+
+export async function sugerirNovaData(pedidoId, novaData) {
+  const agora = new Date();
+  const novaDataInput = new Date(novaData);
+  const dataHojeStr = agora.toISOString().split('T')[0];
+  const novaDataStr = novaDataInput.toISOString().split('T')[0];
   
-  return prisma.pedidodeaula.update({
+  if (novaDataStr < dataHojeStr) {
+    throw new Error('A data não pode ser no passado');
+  }
+  
+  if (novaDataStr === dataHojeStr) {
+    const horaInput = novaDataInput.getHours() * 60 + novaDataInput.getMinutes();
+    const horaAtual = agora.getHours() * 60 + agora.getMinutes();
+    if (horaInput <= horaAtual) {
+      throw new Error('A hora deve ser posterior à hora atual');
+    }
+  }
+  
+  const tresHoras = new Date(Date.now() + 3 * 60 * 60 * 1000);
+
+  const pedido = await prisma.pedidodeaula.update({
     where: { idpedidoaula: parseInt(pedidoId) },
     data: {
       novadata: new Date(novaData),
       novaDataLimite: tresHoras,
+      sugestaoestado: 'AGUARDA_DIRECAO',
     },
     include: {
-      disponibilidade_mensal: true,
+      disponibilidade_mensal: {
+        include: { professor: { include: { utilizador: true } } },
+      },
       encarregadoeducacao: { include: { utilizador: true } },
       sala: true,
     },
   });
+
+  const direcao = await prisma.direcao.findFirst();
+  if (direcao) {
+    const dataFormatada = new Date(novaData).toLocaleDateString('pt-PT');
+    const professorNome = pedido.disponibilidade_mensal?.professor?.utilizador?.nome || `professor #${pedido.disponibilidade_mensal?.professor?.utilizadoriduser}`;
+    await createNotificacao(
+      direcao.utilizadoriduser,
+      `O professor ${professorNome} sugeriu remarcar a aula #${pedidoId} para ${dataFormatada}. Por favor aprove ou rejeite.`,
+      'SUGESTAO_REMARCACAO_DIRECAO'
+    );
+  }
+
+  return pedido;
+}
+
+export async function responderSugestaoDirecao(aulaId, aceitar, direcaoUserId, novaData) {
+  const pedido = await prisma.pedidodeaula.findUnique({
+    where: { idpedidoaula: parseInt(aulaId) },
+    include: {
+      encarregadoeducacao: { include: { utilizador: true } },
+      disponibilidade_mensal: {
+        include: { professor: { include: { utilizador: true } } },
+      },
+    },
+  });
+
+  if (!pedido) throw new Error('Aula não encontrada');
+  if (pedido.sugestaoestado !== 'AGUARDA_DIRECAO') {
+    throw new Error('Não existe sugestão de professor pendente para esta aula');
+  }
+
+  const professorUserId = pedido.disponibilidade_mensal?.professor?.utilizadoriduser;
+  const encarregadoUserId = pedido.encarregadoeducacao?.utilizadoriduser;
+
+  if (!aceitar) {
+    await prisma.pedidodeaula.update({
+      where: { idpedidoaula: parseInt(aulaId) },
+      data: { novadata: null, novaDataLimite: null, sugestaoestado: null },
+    });
+    if (professorUserId) {
+      await createNotificacao(
+        professorUserId,
+        `A Direção rejeitou o pedido de remarcação da aula #${aulaId}.`,
+        'REMARCACAO_REJEITADA_PROFESSOR'
+      );
+    }
+    return { rejeitada: true };
+  }
+
+  // Direção accepts — if no date was proposed by Professor, novaData must be provided now
+  const dataAUsar = pedido.novadata ? pedido.novadata : (novaData ? new Date(novaData) : null);
+  if (!dataAUsar) throw new Error('Nova data é obrigatória quando o professor não propôs data');
+
+  const dataFormatada = new Date(dataAUsar).toLocaleDateString('pt-PT');
+  const tresHoras = new Date(Date.now() + 3 * 60 * 60 * 1000);
+  const updated = await prisma.pedidodeaula.update({
+    where: { idpedidoaula: parseInt(aulaId) },
+    data: { novadata: dataAUsar, novaDataLimite: tresHoras, sugestaoestado: 'AGUARDA_EE' },
+  });
+
+  if (encarregadoUserId) {
+    await createNotificacao(
+      encarregadoUserId,
+      `A Direção propôs remarcar a aula #${aulaId} para ${dataFormatada}. Por favor confirme se aceita.`,
+      'SUGESTAO_REMARCACAO_EE'
+    );
+  }
+
+  return updated;
 }

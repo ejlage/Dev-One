@@ -62,7 +62,7 @@ export async function startPedidoAulaScheduler() {
       const sugestoesExpiradas = await prisma.pedidodeaula.findMany({
         where: {
           novaDataLimite: { not: null, lte: now },
-          novadata: { not: null },
+          sugestaoestado: { not: null },
         },
         include: {
           aula: true,
@@ -75,6 +75,9 @@ export async function startPedidoAulaScheduler() {
 
       const estadoCancelada = await prisma.estadoaula.findFirst({
         where: { nomeestadoaula: 'CANCELADA' },
+      });
+      const estadoCancelado = await prisma.estado.findFirst({
+        where: { tipoestado: { equals: 'Cancelado', mode: 'insensitive' } },
       });
       const direcao = await prisma.direcao.findFirst();
 
@@ -90,15 +93,22 @@ export async function startPedidoAulaScheduler() {
 
         await prisma.pedidodeaula.update({
           where: { idpedidoaula: pedido.idpedidoaula },
-          data: { novaDataLimite: null, novadata: null, sugestaoestado: null },
+          data: {
+            novaDataLimite: null,
+            novadata: null,
+            sugestaoestado: null,
+            ...(estadoCancelado && { estadoidestado: estadoCancelado.idestado }),
+          },
         });
 
         const participanteTexto =
-          pedido.sugestaoestado === 'AGUARDA_PROFESSOR' ? 'professor' : 'encarregado';
+          pedido.sugestaoestado === 'AGUARDA_PROFESSOR' ? 'professor'
+          : pedido.sugestaoestado === 'AGUARDA_DIRECAO' ? 'direção'
+          : 'encarregado';
 
         await createNotificacao(
           pedido.encarregadoeducacaoutilizadoriduser,
-          `A sugestão de remarcação da aula expirou (sem resposta do ${participanteTexto}). A aula foi cancelada.`,
+          `A sugestão de remarcação da aula expirou (sem resposta da ${participanteTexto}). A aula foi cancelada.`,
           'SUGESTAO_EXPIRADA'
         );
 
@@ -110,12 +120,12 @@ export async function startPedidoAulaScheduler() {
             'SUGESTAO_EXPIRADA'
           );
         }
+
         if (direcao) {
-          await createNotificacao(
-            direcao.utilizadoriduser,
-            `A sugestão de remarcação da aula expirou (pedido #${pedido.idpedidoaula}). A aula foi cancelada.`,
-            'SUGESTAO_EXPIRADA'
-          );
+          const direcaoMsg = pedido.sugestaoestado === 'AGUARDA_DIRECAO'
+            ? `O prazo para responder ao pedido de remarcação da aula #${pedido.idpedidoaula} expirou. A aula foi cancelada.`
+            : `A sugestão de remarcação da aula expirou (pedido #${pedido.idpedidoaula}). A aula foi cancelada.`;
+          await createNotificacao(direcao.utilizadoriduser, direcaoMsg, 'SUGESTAO_EXPIRADA');
         }
 
         console.log(`[Scheduler] Sugestão expirada - aula cancelada (pedido #${pedido.idpedidoaula})`);

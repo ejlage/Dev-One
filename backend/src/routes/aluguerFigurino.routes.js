@@ -18,7 +18,7 @@ export default async function aluguerFigurinoRoutes(fastify) {
   
   fastify.put("/:id/status", async (req, reply) => {
     if (!hasRole(req.user.role, "DIRECAO", "PROFESSOR")) {
-      return reply.status(403).send({ success: false, error: "Acesso negated" });
+      return reply.status(403).send({ success: false, error: "Acesso negado" });
     }
     return alquuerController.updateTransacaoStatus(req, reply);
   });

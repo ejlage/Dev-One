@@ -11,10 +11,13 @@ interface NovaAulaFormProps {
   aulasExistentes: PedidoAula[];
   prefill?: {
     professorId?: string;
-    estudioId?: string; // mantido para compatibilidade, não usado no form
+    estudioId?: string;
     data?: string;
     horaInicio?: string;
     duracao?: string;
+    maxDuracao?: string;
+    modalidade?: string;
+    modalidadeId?: string;
   };
 }
 
@@ -23,7 +26,7 @@ type TipoAula = 'individual' | 'privada';
 export function NovaAulaForm({ onSuccess, onCancel, aulasExistentes, prefill }: NovaAulaFormProps) {
   const { user } = useAuth();
   const [formData, setFormData] = useState({
-    alunoId: '',
+    alunoId: user?.role === 'ALUNO' ? user.id : '',
     professorId: user?.role === 'PROFESSOR' ? user.id : '',
     data: '',
     horaInicio: '',
@@ -55,11 +58,16 @@ export function NovaAulaForm({ onSuccess, onCancel, aulasExistentes, prefill }: 
         ...prev,
         professorId: prefill.professorId ?? (user?.role === 'PROFESSOR' ? user.id : prev.professorId),
         data: prefill.data ?? prev.data,
-        horaInicio: prefill.horaInicio ?? prev.horaInicio,
-        duracao: prefill.duracao ?? prev.duracao,
+        horaInicio: prefill.horaInicio || prev.horaInicio,
+        duracao: prefill.duracao || prev.duracao,
+        modalidade: prefill.modalidade || prev.modalidade,
       }));
     }
   }, [prefill]);
+
+  const maxDuracao = prefill?.maxDuracao ? parseInt(prefill.maxDuracao) : 120;
+
+  const duracaoOptions = [30, 60, 90, 120].filter(d => d <= maxDuracao);
 
   if (!user) return null;
 
@@ -112,15 +120,32 @@ export function NovaAulaForm({ onSuccess, onCancel, aulasExistentes, prefill }: 
     }
 
     const duracao = parseInt(formData.duracao);
-    if (duracao < 30 || duracao > 120) {
-      novosErros.push('A duração deve estar entre 30 e 120 minutos');
+    const minDuracao = 30;
+    const maxDuracaoAllow = prefill?.maxDuracao ? parseInt(prefill.maxDuracao) : 120;
+    // Validar: duracao deve estar entre 30 e maxDuracao do slot (ou 120 se não houver slot)
+    if (isNaN(duracao) || duracao < minDuracao || duracao > maxDuracaoAllow) {
+      novosErros.push(`A duração deve estar entre ${minDuracao} e ${maxDuracaoAllow} minutos`);
     }
 
     const dataAula = new Date(formData.data);
+    const agora = new Date();
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
+    
+    // Validar data não pode ser no passado
     if (dataAula < hoje) {
       novosErros.push('A data não pode ser no passado');
+    }
+    
+    // Se data for hoje, validar hora de início
+    const dataHojeStr = hoje.toISOString().split('T')[0];
+    if (formData.data === dataHojeStr && formData.horaInicio) {
+      const [horaH, horaM] = formData.horaInicio.split(':').map(Number);
+      const horaAula = horaH * 60 + horaM;
+      const horaAtual = agora.getHours() * 60 + agora.getMinutes();
+      if (horaAula <= horaAtual) {
+        novosErros.push('A hora de início deve ser posterior à hora atual');
+      }
     }
 
     if (novosErros.length > 0) {
@@ -167,6 +192,7 @@ export function NovaAulaForm({ onSuccess, onCancel, aulasExistentes, prefill }: 
       horaFim: horaFim,
       duracao: duracao,
       status: 'PENDENTE',
+      privacidade: formData.tipoAula === 'privada',
       observacoes: [
         formData.observacoes,
         formData.tipoAula === 'privada' && turma ? `Aula privada — Grupo: ${turma.nome}` : '',
@@ -192,7 +218,7 @@ export function NovaAulaForm({ onSuccess, onCancel, aulasExistentes, prefill }: 
   };
 
   const alunosDisponiveis = user.role === 'ENCARREGADO'
-    ? users.filter(u => u.encarregadoId === user.id)
+    ? users.filter(u => u.role === 'ALUNO' && user.alunosIds?.includes(u.id))
     : users.filter(u => u.role === 'ALUNO');
 
   const professores = users.filter(u => u.role === 'PROFESSOR');
@@ -240,7 +266,7 @@ export function NovaAulaForm({ onSuccess, onCancel, aulasExistentes, prefill }: 
             Tipo de Aula *
           </label>
           <div className="flex gap-3">
-            {/* Individual */}
+            {/* Individual / Pública */}
             <button
               type="button"
               onClick={() => setFormData({ ...formData, tipoAula: 'individual', turmaId: '' })}
@@ -256,8 +282,8 @@ export function NovaAulaForm({ onSuccess, onCancel, aulasExistentes, prefill }: 
                 <Users className={`w-4 h-4 ${formData.tipoAula === 'individual' ? 'text-white' : 'text-[#0d6b5e]'}`} />
               </div>
               <div className="text-left">
-                <p className="text-sm text-[#0a1a17]" style={{ fontWeight: 600 }}>Individual</p>
-                <p className="text-xs text-[#4d7068]">Aula aberta, estúdio a definir</p>
+                <p className="text-sm text-[#0a1a17]" style={{ fontWeight: 600 }}>Pública</p>
+                <p className="text-xs text-[#4d7068]">Visível para outros encarregados aderirem</p>
               </div>
               {formData.tipoAula === 'individual' && (
                 <div className="ml-auto w-4 h-4 rounded-full bg-[#0d6b5e] flex items-center justify-center">
@@ -285,7 +311,7 @@ export function NovaAulaForm({ onSuccess, onCancel, aulasExistentes, prefill }: 
               </div>
               <div className="text-left">
                 <p className="text-sm text-[#0a1a17]" style={{ fontWeight: 600 }}>Privada</p>
-                <p className="text-xs text-[#4d7068]">Aula para um grupo específico</p>
+                <p className="text-xs text-[#4d7068]">Apenas para o teu grupo, não é pública</p>
               </div>
               {formData.tipoAula === 'privada' && (
                 <div className="ml-auto w-4 h-4 rounded-full bg-[#c9a84c] flex items-center justify-center">
@@ -379,15 +405,17 @@ export function NovaAulaForm({ onSuccess, onCancel, aulasExistentes, prefill }: 
               onChange={(e) => setFormData({ ...formData, professorId: e.target.value, turmaId: '' })}
               className="w-full px-4 py-2.5 border border-[#0d6b5e]/20 rounded-lg bg-[#f4f9f8] focus:outline-none focus:border-[#0d6b5e] focus:ring-2 focus:ring-[#0d6b5e]/10 transition-colors"
               required
-              disabled={user.role === 'PROFESSOR'}
+              disabled={user.role === 'PROFESSOR' || !!prefill?.professorId}
             >
               <option value="">Selecione um professor</option>
               {professores.map(prof => (
                 <option key={prof.id} value={prof.id}>{prof.nome}</option>
               ))}
             </select>
-            {user.role === 'PROFESSOR' && (
-              <p className="mt-1 text-xs text-[#0d6b5e]">Marcado automaticamente como professor</p>
+            {(user.role === 'PROFESSOR' || prefill?.professorId) && (
+              <p className="mt-1 text-xs text-[#0d6b5e]">
+                {prefill?.professorId ? 'Definido pelo horário do professor' : 'Marcado automaticamente como professor'}
+              </p>
             )}
           </div>
 
@@ -401,12 +429,16 @@ export function NovaAulaForm({ onSuccess, onCancel, aulasExistentes, prefill }: 
               onChange={(e) => setFormData({ ...formData, modalidade: e.target.value })}
               className="w-full px-4 py-2.5 border border-[#0d6b5e]/20 rounded-lg bg-[#f4f9f8] focus:outline-none focus:border-[#0d6b5e] focus:ring-2 focus:ring-[#0d6b5e]/10 transition-colors"
               required
+              disabled={!!prefill?.modalidade}
             >
               <option value="">Selecione a modalidade</option>
               {['Ballet', 'Ballet Clássico', 'Hip-Hop', 'Jazz', 'Contemporâneo', 'Dança Urbana', 'Teatro Dança', 'Outra'].map(m => (
                 <option key={m} value={m}>{m}</option>
               ))}
             </select>
+            {prefill?.modalidade && (
+              <p className="mt-1 text-xs text-[#0d6b5e]">Definido pelo horário do professor</p>
+            )}
           </div>
 
           {/* Data */}
@@ -443,17 +475,23 @@ export function NovaAulaForm({ onSuccess, onCancel, aulasExistentes, prefill }: 
             <label className="block text-sm mb-2 text-[#4d7068]" style={{ fontWeight: 500 }}>
               Duração *
             </label>
-            <select
+<select
               value={formData.duracao}
               onChange={(e) => setFormData({ ...formData, duracao: e.target.value })}
-              className="w-full px-4 py-2.5 border border-[#0d6b5e]/20 rounded-lg bg-[#f4f9f8] focus:outline-none focus:border-[#0d6b5e] focus:ring-2 focus:ring-[#0d6b5e]/10 transition-colors"
+              className="w-full px-4 py-2.5 border border-[#0d6b5e]/20 rounded-lg bg-[#f4f9f8] focus:outline-none focus:border-[#0d6b5e] focus:ring-2 focus:ring-[#0d6b5e]/10"
               required
             >
-              <option value="30">30 minutos</option>
-              <option value="60">60 minutos (1 hora)</option>
-              <option value="90">90 minutos (1h30)</option>
-              <option value="120">120 minutos (2 horas)</option>
+              {duracaoOptions.map(d => (
+                <option key={d} value={String(d)}>
+                  {d === 30 ? '30 minutos' : d === 60 ? '60 minutos (1 hora)' : d === 90 ? '90 minutos (1h30)' : '120 minutos (2 horas)'}
+                </option>
+              ))}
             </select>
+            {prefill?.maxDuracao && (
+              <p className="mt-1 text-xs text-[#0d6b5e]">
+                Tempo máximo disponível: {prefill.maxDuracao} minutos
+              </p>
+            )}
             {horaFimCalculada && (
               <p className="mt-1 text-sm text-[#0d6b5e]">
                 Término previsto: <span style={{ fontWeight: 600 }}>{horaFimCalculada}</span>
@@ -506,7 +544,8 @@ export function NovaAulaForm({ onSuccess, onCancel, aulasExistentes, prefill }: 
               <li>• O estúdio será atribuído pela direção após aprovação</li>
               <li>• As aulas devem ter entre 30 e 120 minutos</li>
               <li>• O pedido fica pendente até aprovação da direção</li>
-              <li>• Conflitos de horário do professor são validados automaticamente</li>
+              <li>• Aulas <strong>Públicas</strong> ficam visíveis para outros encarregados aderirem (Grupos Abertos)</li>
+              <li>• Aulas <strong>Privadas</strong> só são visíveis ao teu grupo</li>
             </ul>
           </div>
         </div>
