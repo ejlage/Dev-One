@@ -894,7 +894,6 @@ export async function registrarPresenca(aulaId, alunoId, presente) {
     throw new Error('Aluno não encontrado');
   }
   
-  // Verificar se o aluno participa desta aula
   const participation = await prisma.alunoaula.findFirst({
     where: {
       aulaidaula: parseInt(aulaId),
@@ -902,7 +901,7 @@ export async function registrarPresenca(aulaId, alunoId, presente) {
     }
   });
   
-if (!participation) {
+  if (!participation) {
     throw new Error('Aluno não participa nesta aula');
   }
 
@@ -920,7 +919,6 @@ if (!participation) {
     });
   }
   
-  // Criar nova presença
   return prisma.presenca.create({
     data: {
       aulaidaula: parseInt(aulaId),

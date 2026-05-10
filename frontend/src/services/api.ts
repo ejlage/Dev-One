@@ -214,10 +214,8 @@ class ApiService {
     });
   }
 
-  // RF15 — Extrato de Aulas (summary agnóstico — usa o mesmo endpoint do role)
+  // RF15 — Extrato de Aulas
   async getExtratoAulas() {
-    // Usa o mesmo endpoint que já carrega as aulas do role atual
-    // A agregação por mês/ano é feita no frontend
     return this.request<{ success: boolean; data: any[] }>('/api/aulas/extrato');
   }
 

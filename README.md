@@ -135,8 +135,49 @@ npm run dev
 
 ## 9. Testes
 
-- Backend: Vitest
-- Frontend: React Testing Library
+### 9.1 Tipos de Testes
+
+| Tipo | Tecnologia | Quantidade | Comando |
+|------|-----------|------------|---------|
+| Unitários | Vitest | ~338 | `npx vitest run` |
+| Integração | Vitest + BD | ~54 | `npx vitest run --env true` |
+| API | Vitest + inject | ~39 | `npx vitest run --api` |
+| E2E | Playwright | 14 | `npx playwright test` |
+| Postman | Newman | 28 | `newman run postman/EntArtes_BPMN_Flows.json` |
+
+### 9.2 Executar Testes
+
+```bash
+# Todos os testes Vitest (backend)
+cd backend
+npm test
+
+# Testes unitários apenas
+npx vitest run
+
+# Testes com BD real
+npx vitest run --env true
+
+# Testes E2E (requer serviços ativos)
+cd e2e
+npx playwright test
+
+# Testes Postman (requer servidor ativo)
+newman run postman/EntArtes_BPMN_Flows.json -e postman/EntArtes_Environment.json
+```
+
+### 9.3 Credenciais de Teste
+
+| Role | Email | Password |
+|------|-------|----------|
+| DIREÇÃO | direcao@entartes.pt | password123 |
+| PROFESSOR | joao.santos@entartes.pt | password123 |
+| ENCARREGADO | pedro.oliveira@email.pt | password123 |
+| ALUNO | miguel.silva@email.pt | password123 |
+
+### 9.4 Documentação Detalhada
+
+Ver `docs/GUIA_TESTES_COMPLETO.md` para mais informações.
 
 ---
 

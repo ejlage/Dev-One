@@ -362,12 +362,10 @@ export const marcarAula = async (pedidoId, alunoId, encarregadoUserId) => {
     throw new Error("Só pode cancelar participação em aulas pendentes ou confirmadas");
   }
 
-  // Eliminar associações do pedido com os alunos deste encarregado
   await prisma.alunopedidoaula.deleteMany({
     where: { pedidodeaulaidpedidoaula: parseInt(pedidoId) }
   });
 
-  // Atualizar estado para CANCELADO
   const estadoCancelado = await prisma.estado.findFirst({
     where: { tipoestado: { equals: 'Cancelado', mode: 'insensitive' } }
   });

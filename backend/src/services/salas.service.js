@@ -174,7 +174,6 @@ export const consultarSalaDisponivel = async (salaId, data, hora, duracao) => {
   const horaInicioMinutos = horaH * 60 + horaM;
   const horaFimMinutos = horaInicioMinutos + duracao;
 
-  // Verificar se sala existe
   const sala = await prisma.sala.findUnique({
     where: { idsala: parseInt(salaId) }
   });
