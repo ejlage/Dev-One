@@ -30,16 +30,30 @@ export default async function turmasRoutes(fastify) {
   });
 
   fastify.put("/:id/enroll", async (req, reply) => {
-    if (!hasRole(req.user.role, "DIRECAO", "PROFESSOR")) {
+    if (!hasRole(req.user.role, "DIRECAO", "PROFESSOR", "ENCARREGADO")) {
       return reply.status(403).send({ success: false, error: "Acesso negated" });
     }
     return turmasController.enrollAluno(req, reply);
   });
 
   fastify.put("/:id/close", async (req, reply) => {
-    if (!hasRole(req.user.role, "DIRECAO")) {
+    if (!hasRole(req.user.role, "DIRECAO", "PROFESSOR")) {
       return reply.status(403).send({ success: false, error: "Acesso negated" });
     }
     return turmasController.closeTurma(req, reply);
+  });
+
+  fastify.put("/:id/archive", async (req, reply) => {
+    if (!hasRole(req.user.role, "DIRECAO", "PROFESSOR")) {
+      return reply.status(403).send({ success: false, error: "Acesso negated" });
+    }
+    return turmasController.archiveTurma(req, reply);
+  });
+
+  fastify.delete("/:id/alunos/:alunoId", async (req, reply) => {
+    if (!hasRole(req.user.role, "DIRECAO", "PROFESSOR")) {
+      return reply.status(403).send({ success: false, error: "Acesso negated" });
+    }
+    return turmasController.removeAluno(req, reply);
   });
 }

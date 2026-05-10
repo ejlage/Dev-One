@@ -6,9 +6,7 @@ export default async function (fastify) {
 
   fastify.post("/register", async (req, reply) => {
     try {
-      console.log("BODY:", req.body);
       const { nome, email, telemovel, password } = req.body;
-      console.log("EMAIL:", email);
 
       if (!nome || !email || !telemovel || !password) {
         return reply.status(400).send({
@@ -87,6 +85,15 @@ export default async function (fastify) {
         { expiresIn: "1h" }
       );
 
+      let alunosIds = [];
+      if (user.role === 'ENCARREGADO' || user.role === 'encarregado') {
+        const alunos = await prisma.aluno.findMany({
+          where: { encarregadoiduser: user.iduser },
+          select: { utilizadoriduser: true }
+        });
+        alunosIds = alunos.map(a => a.utilizadoriduser.toString());
+      }
+
       return {
         success: true,
         message: "Login com sucesso",
@@ -95,7 +102,8 @@ export default async function (fastify) {
           id: user.iduser,
           nome: user.nome,
           email: user.email,
-          role: user.role
+          role: user.role,
+          alunosIds
         }
       };
 
@@ -123,24 +131,65 @@ export default async function (fastify) {
       });
     }
 
+    const user = await prisma.utilizador.findUnique({
+      where: { email }
+    });
+
+    if (!user) {
+      return reply.status(404).send({
+        error: "Utilizador não encontrado"
+      });
+    }
+
+    const resetToken = jwt.sign(
+      { id: user.iduser, type: "password_reset" },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
+
+    console.log(`[Auth] Password reset token for ${email}: ${resetToken}`);
+
     return {
       success: true,
-      message: "Email de recuperação enviado"
+      message: "Token de recuperação gerado",
+      token: resetToken
     };
   });
 
   fastify.post("/reset-password", async (req, reply) => {
-    const { email, password } = req.body;
+    const { token, password } = req.body;
 
-    if (!email || !password) {
+    if (!token || !password) {
       return reply.status(400).send({
-        error: "Email e password são obrigatórios"
+        error: "Token e password são obrigatórios"
       });
     }
 
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (err) {
+      return reply.status(401).send({
+        error: "Token inválido ou expirado"
+      });
+    }
+
+    if (decoded.type !== "password_reset") {
+      return reply.status(401).send({
+        error: "Token inválido"
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    await prisma.utilizador.update({
+      where: { iduser: decoded.id },
+      data: { password: hashedPassword }
+    });
+
     return {
       success: true,
-      message: "Password alterada"
+      message: "Password alterada com sucesso"
     };
   });
 

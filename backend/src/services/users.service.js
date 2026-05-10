@@ -127,6 +127,14 @@ export const createUser = async (data) => {
     }
   });
 
+  if (role === 'ENCARREGADO') {
+    await prisma.encarregadoeducacao.upsert({
+      where: { utilizadoriduser: user.iduser },
+      create: { utilizadoriduser: user.iduser },
+      update: { utilizadoriduser: user.iduser }
+    });
+  }
+
   // If creating professor, add modalidades
   console.log('[DEBUG] Creating user with role:', role, 'modalidades:', modalidades);
   if (role === 'PROFESSOR' && modalidades && modalidades.length > 0) {
@@ -187,14 +195,11 @@ export const updateUser = async (id, data) => {
     });
 
     if (encarregadoId) {
-      // Verify encarregado exists
-      const existsEncarregado = await prisma.encarregadoeducacao.findFirst({
-        where: { utilizadoriduser: parseInt(encarregadoId) }
+      await prisma.encarregadoeducacao.upsert({
+        where: { utilizadoriduser: parseInt(encarregadoId) },
+        create: { utilizadoriduser: parseInt(encarregadoId) },
+        update: { utilizadoriduser: parseInt(encarregadoId) }
       });
-
-      if (!existsEncarregado) {
-        throw new Error("Encarregado de educação não encontrado");
-      }
 
       if (existsAluno) {
         await prisma.aluno.update({

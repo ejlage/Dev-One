@@ -24,7 +24,7 @@ export const getEventoById = async (req, reply) => {
 
 export const createEvento = async (req, reply) => {
   try {
-    const evento = await eventosService.createEvento(req.body);
+    const evento = await eventosService.createEvento(req.body, req.user.id);
     return reply.status(201).send({ success: true, data: evento });
   } catch (error) {
     return reply.status(400).send({ success: false, error: error.message });

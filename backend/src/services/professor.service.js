@@ -10,30 +10,31 @@ export const getDisponibilidadesMensais = async (professorId) => {
     LEFT JOIN modalidade m ON mp.modalidadeidmodalidade = m.idmodalidade
     WHERE dm.professorutilizadoriduser = ${professorId}
     AND dm.ativo = true
-    ORDER BY dm.diadasemana, dm.horainicio
+    ORDER BY dm.data, dm.horainicio
   `;
 };
 
 export const createDisponibilidadeMensal = async (data) => {
-  const { professorutilizadoriduser, modalidadesprofessoridmodalidadeprofessor, diadasemana, horainicio, horafim } = data;
-  
-  return await prisma.$queryRaw`
-    INSERT INTO disponibilidade_mensal 
-    (professorutilizadoriduser, modalidadesprofessoridmodalidadeprofessor, diadasemana, horainicio, horafim, ativo)
-    VALUES (${professorutilizadoriduser}, ${modalidadesprofessoridmodalidadeprofessor}, ${diadasemana}, ${horainicio}, ${horafim}, true)
+  const { professorutilizadoriduser, modalidadesprofessoridmodalidadeprofessor, data: dataDisponibilidade, horainicio, horafim, salaid } = data;
+
+  return await prisma.$queryRawUnsafe(`
+    INSERT INTO disponibilidade_mensal
+    (professorutilizadoriduser, modalidadesprofessoridmodalidadeprofessor, data, horainicio, horafim, ativo, salaid)
+    VALUES ($1, $2, $3::date, $4::time, $5::time, true, $6)
     RETURNING *
-  `;
+  `, parseInt(professorutilizadoriduser), parseInt(modalidadesprofessoridmodalidadeprofessor),
+     dataDisponibilidade, horainicio, horafim, salaid || null);
 };
 
 export const updateDisponibilidadeMensal = async (id, data) => {
-  const { diadasemana, horainicio, horafim, ativo } = data;
-  
-  return await prisma.$queryRaw`
+  const { data: dataDisponibilidade, horainicio, horafim, ativo, salaid } = data;
+
+  return await prisma.$queryRawUnsafe(`
     UPDATE disponibilidade_mensal
-    SET diadasemana = ${diadasemana}, horainicio = ${horainicio}, horafim = ${horafim}, ativo = ${ativo}
-    WHERE iddisponibilidade_mensal = ${parseInt(id)}
+    SET data = $1::date, horainicio = $2::time, horafim = $3::time, ativo = $4, salaid = $5
+    WHERE iddisponibilidade_mensal = $6
     RETURNING *
-  `;
+  `, dataDisponibilidade, horainicio, horafim, ativo ?? true, salaid || null, parseInt(id));
 };
 
 export const deleteDisponibilidadeMensal = async (id) => {
@@ -54,8 +55,19 @@ export const getProfessorModalidades = async (professorId) => {
 };
 
 export const getProfessorAulas = async (professorId) => {
-  return await prisma.$queryRaw`
-    SELECT 
+  const statusMap = {
+    'PENDENTE': 'PENDENTE',
+    'CONFIRMADO': 'CONFIRMADA',
+    'APROVADO': 'APROVADA',
+    'REJEITADO': 'REJEITADA',
+    'REALIZADO': 'REALIZADA',
+    'CANCELADO': 'CANCELADA',
+    'CONCLUÍDO': 'CONCLUÍDA',
+  };
+  const normalize = (s) => statusMap[s.toUpperCase()] || s.toUpperCase();
+
+  const aulas = await prisma.$queryRaw`
+    SELECT
       pa.idpedidoaula,
       pa.data,
       pa.horainicio,
@@ -63,6 +75,8 @@ export const getProfessorAulas = async (professorId) => {
       pa.estadoidestado,
       e.tipoestado as estado_nome,
       pa.privacidade,
+      pa.sugestaoestado,
+      pa.novadata,
       s.nomesala as sala_nome,
       mp.modalidadeidmodalidade,
       m.nome as modalidade_nome,
@@ -71,13 +85,68 @@ export const getProfessorAulas = async (professorId) => {
     FROM pedidodeaula pa
     JOIN estado e ON pa.estadoidestado = e.idestado
     JOIN sala s ON pa.salaidsala = s.idsala
-    JOIN disponibilidade d ON pa.disponibilidadeiddisponibilidade = d.iddisponibilidade
-    JOIN modalidadeprofessor mp ON d.modalidadeprofessoridmodalidadeprofessor = mp.idmodalidadeprofessor
+    JOIN disponibilidade_mensal dm ON pa.disponibilidade_mensal_id = dm.iddisponibilidade_mensal
+    JOIN modalidadeprofessor mp ON dm.modalidadesprofessoridmodalidadeprofessor = mp.idmodalidadeprofessor
     JOIN modalidade m ON mp.modalidadeidmodalidade = m.idmodalidade
     JOIN utilizador u ON pa.encarregadoeducacaoutilizadoriduser = u.iduser
-    WHERE mp.professorutilizadoriduser = ${professorId}
-    AND e.tipoestado IN ('CONFIRMADA', 'REALIZADA')
+    WHERE dm.professorutilizadoriduser = ${professorId}
+    AND (LOWER(e.tipoestado) IN ('confirmado', 'realizado') OR pa.sugestaoestado = 'AGUARDA_PROFESSOR')
     ORDER BY pa.data DESC, pa.horainicio DESC
+  `;
+  return aulas.map((a) => {
+    const horaInicio = a.horainicio
+      ? (a.horainicio instanceof Date ? a.horainicio.toISOString().substring(11, 16) : String(a.horainicio).substring(0, 5))
+      : '';
+    const duracao = (() => {
+      if (!a.duracaoaula) return 60;
+      if (a.duracaoaula instanceof Date) return a.duracaoaula.getUTCHours() * 60 + a.duracaoaula.getUTCMinutes();
+      const [h, m] = String(a.duracaoaula).split(':');
+      return parseInt(h) * 60 + parseInt(m || '0');
+    })();
+    const [hh, mm] = (horaInicio || '00:00').split(':').map(Number);
+    const endMin = hh * 60 + mm + duracao;
+    const horaFim = String(Math.floor(endMin / 60)).padStart(2, '0') + ':' + String(endMin % 60).padStart(2, '0');
+    return {
+      id: String(a.idpedidoaula),
+      data: a.data ? new Date(a.data).toISOString().split('T')[0] : '',
+      horaInicio,
+      horaFim,
+      duracao,
+      status: normalize(a.estado_nome || ''),
+      modalidade: a.modalidade_nome || '',
+      estudioNome: a.sala_nome || '',
+      professorId: String(professorId),
+      alunoId: String(a.aluno_id || ''),
+      alunoNome: a.aluno_nome || '',
+      sugestaoestado: a.sugestaoestado || null,
+      novadata: a.novadata ? new Date(a.novadata).toISOString().split('T')[0] : null,
+      novaData: a.novadata ? new Date(a.novadata).toISOString().split('T')[0] : null,
+    };
+  });
+};
+
+export const getAllDisponibilidadesMensais = async () => {
+  return await prisma.$queryRaw`
+    SELECT 
+      dm.iddisponibilidade_mensal,
+      dm.professorutilizadoriduser,
+      dm.data,
+      dm.horainicio,
+      dm.horafim,
+      mp.idmodalidadeprofessor,
+      m.nome as modalidade_nome,
+      u.nome as professor_nome,
+      dm.salaid,
+      s.nomesala as estudio_nome,
+      dm.minutos_ocupados,
+      EXTRACT(EPOCH FROM (dm.horafim::time - dm.horainicio::time))/60 as total_minutos
+    FROM disponibilidade_mensal dm
+    LEFT JOIN modalidadeprofessor mp ON dm.modalidadesprofessoridmodalidadeprofessor = mp.idmodalidadeprofessor
+    LEFT JOIN modalidade m ON mp.modalidadeidmodalidade = m.idmodalidade
+    LEFT JOIN utilizador u ON dm.professorutilizadoriduser = u.iduser
+    LEFT JOIN sala s ON dm.salaid = s.idsala
+    WHERE dm.ativo = true
+    ORDER BY dm.data, dm.horainicio
   `;
 };
 

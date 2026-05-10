@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { createNotificacao } from "./notificacoes.service.js";
 
 const prisma = new PrismaClient();
 
@@ -11,7 +12,7 @@ export async function startPedidoAulaScheduler() {
   const checkAndAutoReject = async () => {
     try {
       const estadoPendente = await prisma.estado.findFirst({
-        where: { tipoestado: 'PENDENTE' }
+        where: { tipoestado: { equals: 'Pendente', mode: 'insensitive' } }
       });
       
       if (!estadoPendente) {
@@ -29,7 +30,7 @@ export async function startPedidoAulaScheduler() {
 
       if (pedidosAntigos.length > 0) {
         const estadoRejeitado = await prisma.estado.findFirst({
-          where: { tipoestado: 'REJEITADO' }
+          where: { tipoestado: { equals: 'Rejeitado', mode: 'insensitive' } }
         });
 
         if (estadoRejeitado) {
@@ -38,6 +39,13 @@ export async function startPedidoAulaScheduler() {
               where: { idpedidoaula: pedido.idpedidoaula },
               data: { estadoidestado: estadoRejeitado.idestado }
             });
+
+            await createNotificacao(
+              pedido.encarregadoeducacaoutilizadoriduser,
+              `O seu pedido de aula para ${new Date(pedido.data).toLocaleDateString('pt-PT')} foi rejeitado automaticamente por não ter sido avaliado em 3 horas. Pode submeter um novo pedido.`,
+              'PEDIDO_REJEITADO_AUTO'
+            );
+
             console.log(`[Scheduler] Auto-rejeitado pedido #${pedido.idpedidoaula} (3h timeout)`);
           }
         }
@@ -50,40 +58,67 @@ export async function startPedidoAulaScheduler() {
   const checkAndExpireSugestoes = async () => {
     try {
       const now = new Date();
-      
+
       const sugestoesExpiradas = await prisma.pedidodeaula.findMany({
         where: {
           novaDataLimite: { not: null, lte: now },
-          novadata: { not: null }
+          novadata: { not: null },
         },
         include: {
           aula: true,
-          encarregadoeducacao: { include: { utilizador: true } }
-        }
+          encarregadoeducacao: { include: { utilizador: true } },
+          disponibilidade_mensal: true,
+        },
       });
 
-      if (sugestoesExpiradas.length > 0) {
-        const estadoCancelada = await prisma.estadoaula.findFirst({
-          where: { nomeestadoaula: 'CANCELADA' }
-        });
+      if (sugestoesExpiradas.length === 0) return;
 
-        for (const pedido of sugestoesExpiradas) {
-          if (estadoCancelada && pedido.aula?.length > 0) {
-            for (const aula of pedido.aula) {
-              await prisma.aula.update({
-                where: { idaula: aula.idaula },
-                data: { estadoaulaidestadoaula: estadoCancelada.idestadoaula }
-              });
-            }
-            
-            await prisma.pedidodeaula.update({
-              where: { idpedidoaula: pedido.idpedidoaula },
-              data: { novaDataLimite: null, novadata: null }
+      const estadoCancelada = await prisma.estadoaula.findFirst({
+        where: { nomeestadoaula: 'CANCELADA' },
+      });
+      const direcao = await prisma.direcao.findFirst();
+
+      for (const pedido of sugestoesExpiradas) {
+        if (estadoCancelada && pedido.aula?.length > 0) {
+          for (const aula of pedido.aula) {
+            await prisma.aula.update({
+              where: { idaula: aula.idaula },
+              data: { estadoaulaidestadoaula: estadoCancelada.idestadoaula },
             });
-            
-            console.log(`[Scheduler] Sugestão expirada - aula cancelada (pedido #${pedido.idpedidoaula})`);
           }
         }
+
+        await prisma.pedidodeaula.update({
+          where: { idpedidoaula: pedido.idpedidoaula },
+          data: { novaDataLimite: null, novadata: null, sugestaoestado: null },
+        });
+
+        const participanteTexto =
+          pedido.sugestaoestado === 'AGUARDA_PROFESSOR' ? 'professor' : 'encarregado';
+
+        await createNotificacao(
+          pedido.encarregadoeducacaoutilizadoriduser,
+          `A sugestão de remarcação da aula expirou (sem resposta do ${participanteTexto}). A aula foi cancelada.`,
+          'SUGESTAO_EXPIRADA'
+        );
+
+        const professorId = pedido.disponibilidade_mensal?.professorutilizadoriduser;
+        if (professorId) {
+          await createNotificacao(
+            professorId,
+            `A sugestão de remarcação da aula expirou. A aula foi cancelada.`,
+            'SUGESTAO_EXPIRADA'
+          );
+        }
+        if (direcao) {
+          await createNotificacao(
+            direcao.utilizadoriduser,
+            `A sugestão de remarcação da aula expirou (pedido #${pedido.idpedidoaula}). A aula foi cancelada.`,
+            'SUGESTAO_EXPIRADA'
+          );
+        }
+
+        console.log(`[Scheduler] Sugestão expirada - aula cancelada (pedido #${pedido.idpedidoaula})`);
       }
     } catch (error) {
       console.error('[Scheduler] Error checking sugestoes expiradas:', error.message);

@@ -54,18 +54,18 @@ export async function createPedidoAula(req, reply) {
     const { 
       data: dataAula, 
       horainicio, 
-      duracaoaula, 
-      maxparticipantes, 
+      duracaoaula,
+      maxparticipantes,
       privacidade,
-      disponibilidadeiddisponibilidade, 
-      grupoidgrupo, 
+      disponibilidade_mensal_id,
+      grupoidgrupo,
       salaidsala
     } = req.body;
 
-    if (!dataAula || !horainicio || !disponibilidadeiddisponibilidade || !salaidsala) {
-      return reply.status(400).send({ 
-        success: false, 
-        error: 'Campos obrigatórios: data, horainicio, disponibilidadeiddisponibilidade, salaidsala' 
+    if (!dataAula || !horainicio || !salaidsala) {
+      return reply.status(400).send({
+        success: false,
+        error: 'Campos obrigatórios: data, horainicio, salaidsala'
       });
     }
 
@@ -75,7 +75,7 @@ export async function createPedidoAula(req, reply) {
       duracaoaula: duracaoaula || '01:00',
       maxparticipantes: maxparticipantes || 10,
       privacidade: privacidade || false,
-      disponibilidadeiddisponibilidade,
+      disponibilidade_mensal_id,
       grupoidgrupo,
       salaidsala,
       encarregadoeducacaoutilizadoriduser: userId
@@ -91,21 +91,34 @@ export async function createPedidoAula(req, reply) {
 export async function approvePedidoAula(req, reply) {
   try {
     const { id } = req.params;
-    
+
     const pedido = await pedidosaulaService.updatePedidoAulaStatus(id, 'CONFIRMADO');
-    
-    if (pedido && pedido.encarregadoeducacao) {
+
+    const dataFormatada = pedido?.data
+      ? new Date(pedido.data).toLocaleDateString('pt-PT')
+      : '';
+
+    if (pedido?.encarregadoeducacao) {
       await notificacoesService.createNotificacao(
         pedido.encarregadoeducacao.utilizadoriduser,
-        `O seu pedido de aula para ${new Date(pedido.data).toLocaleDateString('pt-PT')} foi aprovado!`,
+        `O seu pedido de aula para ${dataFormatada} foi aprovado!`,
         'PEDIDO_APROVADO'
       );
     }
-    
-    return { 
-      success: true, 
-      data: pedido, 
-      message: 'Pedido aprovado! Aula confirmada.' 
+
+    const professorId = pedido?.disponibilidade_mensal?.professor?.utilizadoriduser;
+    if (professorId) {
+      await notificacoesService.createNotificacao(
+        professorId,
+        `Foi confirmada uma nova aula para ${dataFormatada}.`,
+        'PEDIDO_APROVADO'
+      );
+    }
+
+    return {
+      success: true,
+      data: pedido,
+      message: 'Pedido aprovado! Aula confirmada.'
     };
   } catch (error) {
     console.error('Error approving pedido:', error);
@@ -120,10 +133,11 @@ export async function rejectPedidoAula(req, reply) {
     
     const pedido = await pedidosaulaService.updatePedidoAulaStatus(id, 'REJEITADO');
     
-    if (pedido && pedido.encarregadoeducacao) {
+    if (pedido?.encarregadoeducacao) {
+      const motivoTexto = motivo ? ` Motivo: ${motivo}.` : '';
       await notificacoesService.createNotificacao(
         pedido.encarregadoeducacao.utilizadoriduser,
-        `O seu pedido de aula foi rejeitado.${motivo ? ` Motivo: ${motivo}` : ''}`,
+        `O seu pedido de aula foi rejeitado.${motivoTexto} Pode submeter um novo pedido com um horário diferente.`,
         'PEDIDO_REJEITADO'
       );
     }

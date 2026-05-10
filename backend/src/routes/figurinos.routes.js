@@ -28,4 +28,20 @@ export default async function figurinosRoutes(fastify) {
     }
     return figurinosController.deleteFigurino(req, reply);
   });
+
+  fastify.post("/stock", async (req, reply) => {
+    if (!hasRole(req.user.role, "DIRECAO")) {
+      return reply.status(403).send({ success: false, error: "Acesso negado" });
+    }
+    return figurinosController.createFigurinoStock(req, reply);
+  });
+
+  fastify.patch("/:id/status", async (req, reply) => {
+    if (!hasRole(req.user.role, "DIRECAO")) {
+      return reply.status(403).send({ success: false, error: "Acesso negado" });
+    }
+    return figurinosController.updateFigurinoStatusSimple(req, reply);
+  });
+
+  fastify.get("/lookup", figurinosController.getLookupData);
 }

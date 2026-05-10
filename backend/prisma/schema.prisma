@@ -45,6 +45,7 @@ model anuncio {
   direcaoutilizadoriduser             Int
   encarregadoeducacaoutilizadoriduser Int
   professorutilizadoriduser           Int
+  tipotransacao                       String              @default("ALUGUER")
   figurino                            figurino            @relation(fields: [figurinoidfigurino], references: [idfigurino], onDelete: NoAction, onUpdate: NoAction, map: "fkanuncio206012")
   encarregadoeducacao                 encarregadoeducacao @relation(fields: [encarregadoeducacaoutilizadoriduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction, map: "fkanuncio342590")
   estado                              estado              @relation(fields: [estadoidestado], references: [idestado], onDelete: NoAction, onUpdate: NoAction, map: "fkanuncio57402")
@@ -73,35 +74,22 @@ model cor {
 model direcao {
   utilizadoriduser  Int                 @id
   anuncio           anuncio[]
+  evento            evento[]
   utilizador        utilizador          @relation(fields: [utilizadoriduser], references: [iduser], onDelete: NoAction, onUpdate: NoAction, map: "fkdirecao999505")
   figurino          figurino[]
   transacaofigurino transacaofigurino[]
 }
 
-model disponibilidade {
-  iddisponibilidade                        Int                 @id @default(autoincrement())
-  datainicio                               DateTime            @db.Date
-  datafim                                  DateTime            @db.Time(6)
-  duracaominima                            DateTime            @db.Time(6)
-  duracaomaxima                            DateTime            @db.Time(6)
-  modalidadeprofessoridmodalidadeprofessor Int
-  tipoaulaidtipoaula                       Int
-  professorutilizadoriduser                Int
-  modalidadeprofessor                      modalidadeprofessor @relation(fields: [modalidadeprofessoridmodalidadeprofessor], references: [idmodalidadeprofessor], onDelete: NoAction, onUpdate: NoAction, map: "fkdisponibil276660")
-  tipoaula                                 tipoaula            @relation(fields: [tipoaulaidtipoaula], references: [idtipoaula], onDelete: NoAction, onUpdate: NoAction, map: "fkdisponibil315555")
-  professor                                professor           @relation(fields: [professorutilizadoriduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction, map: "fkdisponibil456629")
-  pedidodeaula                             pedidodeaula[]
-}
-
 
 
 model encarregadoeducacao {
-  utilizadoriduser Int            @id
-  aluno            aluno[]
-  anuncio          anuncio[]
-  utilizador       utilizador     @relation(fields: [utilizadoriduser], references: [iduser], onDelete: NoAction, onUpdate: NoAction, map: "fkencarregad867539")
-  figurino         figurino[]
-  pedidodeaula     pedidodeaula[]
+  utilizadoriduser  Int                 @id
+  aluno             aluno[]
+  anuncio           anuncio[]
+  utilizador        utilizador          @relation(fields: [utilizadoriduser], references: [iduser], onDelete: NoAction, onUpdate: NoAction, map: "fkencarregad867539")
+  figurino          figurino[]
+  pedidodeaula      pedidodeaula[]
+  transacaofigurino transacaofigurino[]
 }
 
 model estado {
@@ -139,20 +127,20 @@ model figurino {
   tamanhoidtamanho                    Int
   coridcor                            Int
   estadousoidestado                   Int
-  encarregadoeducacaoutilizadoriduser Int
-  direcaoutilizadoriduser             Int
-  professorutilizadoriduser           Int
-  itemfigurinoiditem                  Int
+  encarregadoeducacaoutilizadoriduser Int?
+  direcaoutilizadoriduser             Int?
+  professorutilizadoriduser           Int?
+  itemfigurinoiditem                  Int?
   anuncio                             anuncio[]
   estadouso                           estadouso           @relation(fields: [estadousoidestado], references: [idestado], onDelete: NoAction, onUpdate: NoAction, map: "fkfigurino733126")
   tamanho                             tamanho             @relation(fields: [tamanhoidtamanho], references: [idtamanho], onDelete: NoAction, onUpdate: NoAction, map: "fkfigurino742941")
-  professor                           professor           @relation(fields: [professorutilizadoriduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction, map: "fkfigurino753753")
+  professor                           professor?          @relation(fields: [professorutilizadoriduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction, map: "fkfigurino753753")
   cor                                 cor                 @relation(fields: [coridcor], references: [idcor], onDelete: NoAction, onUpdate: NoAction, map: "fkfigurino779940")
   genero                              genero              @relation(fields: [generoidgenero], references: [idgenero], onDelete: NoAction, onUpdate: NoAction, map: "fkfigurino823907")
-  direcao                             direcao             @relation(fields: [direcaoutilizadoriduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction, map: "fkfigurino831575")
-  encarregadoeducacao                 encarregadoeducacao @relation(fields: [encarregadoeducacaoutilizadoriduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction, map: "fkfigurino857260")
+  direcao                             direcao?            @relation(fields: [direcaoutilizadoriduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction, map: "fkfigurino831575")
+  encarregadoeducacao                 encarregadoeducacao? @relation(fields: [encarregadoeducacaoutilizadoriduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction, map: "fkfigurino857260")
   modelofigurino                      modelofigurino      @relation(fields: [modelofigurinoidmodelo], references: [idmodelo], onDelete: NoAction, onUpdate: NoAction, map: "fkfigurino865766")
-  itemfigurino                        itemfigurino        @relation(fields: [itemfigurinoiditem], references: [iditem], onDelete: NoAction, onUpdate: NoAction, map: "fkfigurino940616")
+  itemfigurino                        itemfigurino?       @relation(fields: [itemfigurinoiditem], references: [iditem], onDelete: NoAction, onUpdate: NoAction, map: "fkfigurino940616")
 }
 
 model genero {
@@ -164,6 +152,22 @@ model genero {
 model grupo {
   idgrupo      Int            @id @default(autoincrement())
   nomegrupo    String         @db.VarChar(255)
+  status       String         @default("ABERTA") @db.VarChar(20)
+  descricao    String?        @db.VarChar(1000)
+  modalidade   String?        @db.VarChar(100)
+  nivel        String?        @db.VarChar(50)
+  faixaEtaria  String?        @db.VarChar(50)
+  professorId  Int?
+  estudioId    Int?
+  diasSemana   String?        @db.VarChar(50)
+  horaInicio   String?        @db.VarChar(5)
+  horaFim      String?        @db.VarChar(5)
+  duracao      Int?
+  lotacaoMaxima Int?
+  dataInicio   String?        @db.VarChar(20)
+  dataFim      String?        @db.VarChar(20)
+  cor          String?        @db.VarChar(20)
+  requisitos   String?        @db.VarChar(500)
   alunogrupo   alunogrupo[]
   pedidodeaula pedidodeaula[]
 }
@@ -182,12 +186,12 @@ model modalidade {
 }
 
 model modalidadeprofessor {
-  idmodalidadeprofessor     Int               @id @default(autoincrement())
+  idmodalidadeprofessor     Int                      @id @default(autoincrement())
   modalidadeidmodalidade    Int
   professorutilizadoriduser Int
-  disponibilidade           disponibilidade[]
-  modalidade                modalidade        @relation(fields: [modalidadeidmodalidade], references: [idmodalidade], onDelete: NoAction, onUpdate: NoAction, map: "fkmodalidade141851")
-  professor                 professor         @relation(fields: [professorutilizadoriduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction, map: "fkmodalidade804039")
+  disponibilidade_mensal    disponibilidade_mensal[]
+  modalidade                modalidade               @relation(fields: [modalidadeidmodalidade], references: [idmodalidade], onDelete: NoAction, onUpdate: NoAction, map: "fkmodalidade141851")
+  professor                 professor                @relation(fields: [professorutilizadoriduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction, map: "fkmodalidade804039")
 }
 
 model modelofigurino {
@@ -208,40 +212,43 @@ model pedidodeaula {
   maxparticipantes                    Int
   datapedido                          DateTime            @db.Date
   privacidade                         Boolean
-  disponibilidadeiddisponibilidade    Int
+  disponibilidade_mensal_id           Int?
   grupoidgrupo                        Int
   estadoidestado                      Int
   salaidsala                          Int
   encarregadoeducacaoutilizadoriduser Int
   novadata                            DateTime?           @db.Date
   novaDataLimite                      DateTime?
+  sugestaoestado                      String?
   aula                                aula[]
   encarregadoeducacao                 encarregadoeducacao @relation(fields: [encarregadoeducacaoutilizadoriduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction, map: "fkpedidodeau208002")
-  disponibilidade                     disponibilidade     @relation(fields: [disponibilidadeiddisponibilidade], references: [iddisponibilidade], onDelete: NoAction, onUpdate: NoAction, map: "fkpedidodeau349532")
+  disponibilidade_mensal              disponibilidade_mensal? @relation(fields: [disponibilidade_mensal_id], references: [iddisponibilidade_mensal], onDelete: NoAction, onUpdate: NoAction)
   sala                                sala                @relation(fields: [salaidsala], references: [idsala], onDelete: NoAction, onUpdate: NoAction, map: "fkpedidodeau681324")
   estado                              estado              @relation(fields: [estadoidestado], references: [idestado], onDelete: NoAction, onUpdate: NoAction, map: "fkpedidodeau808009")
   grupo                               grupo               @relation(fields: [grupoidgrupo], references: [idgrupo], onDelete: NoAction, onUpdate: NoAction, map: "fkpedidodeau991761")
 }
 
 model professor {
-  utilizadoriduser    Int                   @id
-  anuncio             anuncio[]
-  disponibilidade     disponibilidade[]
-  figurino            figurino[]
-  modalidadeeprofessor modalidadeprofessor[]
-  utilizador          utilizador            @relation(fields: [utilizadoriduser], references: [iduser], onDelete: NoAction, onUpdate: NoAction, map: "fkprofessor908326")
+  utilizadoriduser        Int                      @id
+  anuncio                 anuncio[]
+  disponibilidade_mensal  disponibilidade_mensal[]
+  figurino                figurino[]
+  modalidadeeprofessor    modalidadeprofessor[]
+  transacaofigurino       transacaofigurino[]
+  utilizador              utilizador               @relation(fields: [utilizadoriduser], references: [iduser], onDelete: NoAction, onUpdate: NoAction, map: "fkprofessor908326")
 }
 
 model sala {
-  idsala                 Int            @id @default(autoincrement())
+  idsala                 Int                      @id @default(autoincrement())
   nomesala               Int
   capacidade             Int
   estadosalaidestadosala Int
   tiposalaidtiposala     Int
   aula                   aula[]
+  disponibilidade_mensal disponibilidade_mensal[]
   pedidodeaula           pedidodeaula[]
-  tiposala               tiposala       @relation(fields: [tiposalaidtiposala], references: [idtiposala], onDelete: NoAction, onUpdate: NoAction, map: "fksala356279")
-  estadosala             estadosala     @relation(fields: [estadosalaidestadosala], references: [idestadosala], onDelete: NoAction, onUpdate: NoAction, map: "fksala483672")
+  tiposala               tiposala                 @relation(fields: [tiposalaidtiposala], references: [idtiposala], onDelete: NoAction, onUpdate: NoAction, map: "fksala356279")
+  estadosala             estadosala               @relation(fields: [estadosalaidestadosala], references: [idestadosala], onDelete: NoAction, onUpdate: NoAction, map: "fksala483672")
 }
 
 model tamanho {
@@ -250,11 +257,6 @@ model tamanho {
   figurino    figurino[]
 }
 
-model tipoaula {
-  idtipoaula      Int               @id @default(autoincrement())
-  nometipoaula    String            @db.VarChar(255)
-  disponibilidade disponibilidade[]
-}
 
 model tipofigurino {
   idtipofigurino Int              @id @default(autoincrement())
@@ -269,17 +271,21 @@ model tiposala {
 }
 
 model transacaofigurino {
-  idtransacao             Int          @id @default(autoincrement())
-  quantidade              Int
-  datatransacao           DateTime     @db.Date
-  anuncioidanuncio        Int
-  estadoidestado          Int
-  itemfigurinoiditem      Int
-  direcaoutilizadoriduser Int
-  anuncio                 anuncio      @relation(fields: [anuncioidanuncio], references: [idanuncio], onDelete: NoAction, onUpdate: NoAction, map: "fktransacaof244520")
-  itemfigurino            itemfigurino @relation(fields: [itemfigurinoiditem], references: [iditem], onDelete: NoAction, onUpdate: NoAction, map: "fktransacaof401607")
-  direcao                 direcao      @relation(fields: [direcaoutilizadoriduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction, map: "fktransacaof510648")
-  estado                  estado       @relation(fields: [estadoidestado], references: [idestado], onDelete: NoAction, onUpdate: NoAction, map: "fktransacaof915028")
+  idtransacao                         Int                  @id @default(autoincrement())
+  quantidade                          Int
+  datatransacao                       DateTime             @db.Date
+  anuncioidanuncio                    Int
+  estadoidestado                      Int
+  itemfigurinoiditem                  Int
+  direcaoutilizadoriduser             Int?
+  encarregadoeducacaoutilizadoriduser Int?
+  professorutilizadoriduser           Int?
+  anuncio                             anuncio              @relation(fields: [anuncioidanuncio], references: [idanuncio], onDelete: NoAction, onUpdate: NoAction, map: "fktransacaof244520")
+  itemfigurino                        itemfigurino         @relation(fields: [itemfigurinoiditem], references: [iditem], onDelete: NoAction, onUpdate: NoAction, map: "fktransacaof401607")
+  direcao                             direcao?             @relation(fields: [direcaoutilizadoriduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction, map: "fktransacaof510648")
+  encarregadoeducacao                 encarregadoeducacao? @relation(fields: [encarregadoeducacaoutilizadoriduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction, map: "fktransacaofencarregado")
+  professor                           professor?           @relation(fields: [professorutilizadoriduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction, map: "fktransacaofprofessor")
+  estado                              estado               @relation(fields: [estadoidestado], references: [idestado], onDelete: NoAction, onUpdate: NoAction, map: "fktransacaof915028")
 }
 
 model utilizador {
@@ -306,4 +312,35 @@ model notificacao {
   datanotificacao     DateTime    @default(now())
   utilizadoriduser    Int
   utilizador          utilizador  @relation(fields: [utilizadoriduser], references: [iduser])
+}
+
+model disponibilidade_mensal {
+  iddisponibilidade_mensal                  Int                 @id @default(autoincrement())
+  professorutilizadoriduser                 Int
+  modalidadesprofessoridmodalidadeprofessor Int
+  data                                      DateTime            @db.Date
+  horainicio                                DateTime            @db.Time(6)
+  horafim                                   DateTime            @db.Time(6)
+  ativo                                     Boolean             @default(true)
+  salaid                                    Int?
+  minutos_ocupados                          Int                 @default(0)
+  pedidodeaula                              pedidodeaula[]
+  professor                                 professor           @relation(fields: [professorutilizadoriduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction)
+  modalidadeprofessor                       modalidadeprofessor @relation(fields: [modalidadesprofessoridmodalidadeprofessor], references: [idmodalidadeprofessor], onDelete: NoAction, onUpdate: NoAction)
+  sala                                      sala?               @relation(fields: [salaid], references: [idsala], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model evento {
+  idevento                    Int      @id @default(autoincrement())
+  titulo                      String   @db.VarChar(255)
+  descricao                   String?  @db.Text
+  dataevento                  DateTime @db.Date
+  localizacao                 String?  @db.VarChar(255)
+  imagem                      String?  @db.VarChar(500)
+  linkbilhetes                String?  @db.VarChar(500)
+  publicado                   Boolean  @default(false)
+  destaque                    Boolean  @default(false)
+  datacriacao                 DateTime @default(now())
+  direcaoutilizadoriduser     Int?
+  direcao                     direcao? @relation(fields: [direcaoutilizadoriduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction)
 }

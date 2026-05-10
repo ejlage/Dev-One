@@ -9,8 +9,8 @@ export default async function anunciosRoutes(fastify) {
   fastify.get("/", anunciosController.getAllAnuncios);
 
   fastify.post("/", async (req, reply) => {
-    if (!hasRole(req.user.role, "DIRECAO", "PROFESSOR")) {
-      return reply.status(403).send({ success: false, error: "Acesso negated" });
+    if (!hasRole(req.user.role, "DIRECAO", "PROFESSOR", "ENCARREGADO")) {
+      return reply.status(403).send({ success: false, error: "Acesso não autorizado" });
     }
     return anunciosController.createAnuncio(req, reply);
   });

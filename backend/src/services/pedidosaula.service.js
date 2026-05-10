@@ -2,26 +2,26 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-const disponibilidadeInclude = {
+const disponibilidade_mensalInclude = {
   include: {
     modalidadeprofessor: {
       include: {
         modalidade: true
       }
     },
-    tipoaula: true,
     professor: {
       include: {
         utilizador: true
       }
-    }
+    },
+    sala: true,
   }
 };
 
 export async function getAllPedidosAula() {
   return prisma.pedidodeaula.findMany({
     include: {
-      disponibilidade: disponibilidadeInclude,
+      disponibilidade_mensal: disponibilidade_mensalInclude,
       grupo: true,
       estado: true,
       sala: true,
@@ -37,7 +37,7 @@ export async function getPedidoAulaById(id) {
   return prisma.pedidodeaula.findUnique({
     where: { idpedidoaula: parseInt(id) },
     include: {
-      disponibilidade: disponibilidadeInclude,
+      disponibilidade_mensal: disponibilidade_mensalInclude,
       grupo: true,
       estado: true,
       sala: true,
@@ -52,7 +52,7 @@ export async function getPedidosByEncarregado(encarregadoUserId) {
   return prisma.pedidodeaula.findMany({
     where: { encarregadoeducacaoutilizadoriduser: encarregadoUserId },
     include: {
-      disponibilidade: disponibilidadeInclude,
+      disponibilidade_mensal: disponibilidade_mensalInclude,
       grupo: true,
       estado: true,
       sala: true
@@ -61,17 +61,45 @@ export async function getPedidosByEncarregado(encarregadoUserId) {
   });
 }
 
+export async function getAllPedidosEAulas() {
+  const pedidos = await prisma.pedidodeaula.findMany({ orderBy: { datapedido: 'desc' } });
+
+  const salas = await prisma.sala.findMany();
+  const estados = await prisma.estado.findMany();
+  const salaMap = Object.fromEntries(salas.map(s => [s.idsala, s.nomesala]));
+  const estadoMap = Object.fromEntries(estados.map(e => [e.idestado, e.tipoestado]));
+
+  return pedidos.map(p => ({
+    id: String(p.idpedidoaula),
+    alunoId: '',
+    alunoNome: '',
+    encarregadoId: p.encarregadoeducacaoutilizadoriduser ? String(p.encarregadoeducacaoutilizadoriduser) : '',
+    professorId: '',
+    professorNome: '',
+    estudioId: String(p.salaidsala),
+    estudioNome: salaMap[p.salaidsala] || '',
+    modalidade: '',
+    data: p.data ? new Date(p.data).toISOString().split('T')[0] : '',
+    horaInicio: p.horainicio ? String(p.horainicio).substring(11, 16) : '',
+    horaFim: '',
+    duracao: p.duracaoaula || 60,
+    status: estadoMap[p.estadoidestado] || 'PENDENTE',
+    criadoEm: p.datapedido ? new Date(p.datapedido).toISOString() : '',
+    participantes: []
+  }));
+}
+
 export async function getPedidosPendentes() {
   const estadoPendente = await prisma.estado.findFirst({
     where: { tipoestado: 'PENDENTE' }
   });
-  
+
   if (!estadoPendente) return [];
 
   return prisma.pedidodeaula.findMany({
     where: { estadoidestado: estadoPendente.idestado },
     include: {
-      disponibilidade: disponibilidadeInclude,
+      disponibilidade_mensal: disponibilidade_mensalInclude,
       grupo: true,
       estado: true,
       sala: true,
@@ -84,16 +112,16 @@ export async function getPedidosPendentes() {
 }
 
 export async function createPedidoAula(data) {
-  const { 
-    data: dataAula, 
-    horainicio, 
-    duracaoaula, 
-    maxparticipantes, 
+  const {
+    data: dataAula,
+    horainicio,
+    duracaoaula,
+    maxparticipantes,
     privacidade,
-    disponibilidadeiddisponibilidade, 
-    grupoidgrupo, 
+    disponibilidade_mensal_id,
+    grupoidgrupo,
     salaidsala,
-    encarregadoeducacaoutilizadoriduser 
+    encarregadoeducacaoutilizadoriduser
   } = data;
 
   const estadoPendente = await prisma.estado.findFirst({
@@ -112,14 +140,14 @@ export async function createPedidoAula(data) {
       maxparticipantes: parseInt(maxparticipantes || 10),
       datapedido: new Date(),
       privacidade: privacidade || false,
-      disponibilidadeiddisponibilidade: parseInt(disponibilidadeiddisponibilidade),
+      disponibilidade_mensal_id: disponibilidade_mensal_id ? parseInt(disponibilidade_mensal_id) : null,
       grupoidgrupo: grupoidgrupo ? parseInt(grupoidgrupo) : null,
       estadoidestado: estadoPendente.idestado,
       salaidsala: parseInt(salaidsala),
       encarregadoeducacaoutilizadoriduser: parseInt(encarregadoeducacaoutilizadoriduser)
     },
     include: {
-      disponibilidade: disponibilidadeInclude,
+      disponibilidade_mensal: disponibilidade_mensalInclude,
       grupo: true,
       estado: true,
       sala: true,
@@ -143,7 +171,7 @@ export async function updatePedidoAulaStatus(id, novoEstadoTipo) {
     where: { idpedidoaula: parseInt(id) },
     data: { estadoidestado: estado.idestado },
     include: {
-      disponibilidade: disponibilidadeInclude,
+      disponibilidade_mensal: disponibilidade_mensalInclude,
       estado: true,
       encarregadoeducacao: {
         include: { utilizador: true }

@@ -3,18 +3,12 @@ import prisma from "../config/db.js";
 export const getAllFigurinos = async () => {
   const figurinos = await prisma.figurino.findMany({
     include: {
-      estadouso: true,
-      tamanho: true,
-      cor: true,
-      genero: true,
-      modelofigurino: {
-        include: {
-          tipofigurino: true
-        }
-      }
+      estadouso: true, tamanho: true, cor: true, genero: true,
+      modelofigurino: { include: { tipofigurino: true } },
+      itemfigurino: true,
     }
   });
-  return figurinos;
+  return figurinos.map(mapFigurino);
 };
 
 export const getFigurinoById = async (id) => {
@@ -153,3 +147,86 @@ export const updateFigurinoStatus = async (id, novoEstadoId) => {
 
   return updatedFigurino;
 };
+
+// Status string → estadouso ID
+const STATUS_MAP = { DISPONIVEL: 19, ALUGADO: 21, VENDIDO: 17 };
+const ESTADO_TO_STATUS = { 16: 'DISPONIVEL', 17: 'DISPONIVEL', 18: 'DISPONIVEL', 19: 'DISPONIVEL', 20: 'ALUGADO', 21: 'ALUGADO' };
+
+export const createFigurinoStock = async (data, direcaoUserId) => {
+  const {
+    nome, descricao, fotografia, tipofigurinoid,
+    tamanhoid, generoid, corid, localizacao,
+    quantidadetotal = 1, quantidadedisponivel = 1
+  } = data;
+
+  const modelo = await prisma.modelofigurino.create({
+    data: {
+      nomemodelo: nome,
+      descricao: descricao || '',
+      fotografia: fotografia || '',
+      tipofigurinoidtipofigurino: parseInt(tipofigurinoid),
+    }
+  });
+
+  const item = await prisma.itemfigurino.create({
+    data: { localizacao: localizacao || '' }
+  });
+
+  const figurino = await prisma.figurino.create({
+    data: {
+      quantidadetotal: parseInt(quantidadetotal),
+      quantidadedisponivel: parseInt(quantidadedisponivel),
+      modelofigurinoidmodelo: modelo.idmodelo,
+      generoidgenero: parseInt(generoid),
+      tamanhoidtamanho: parseInt(tamanhoid),
+      coridcor: parseInt(corid),
+      estadousoidestado: 19,
+      itemfigurinoiditem: item.iditem,
+      ...(direcaoUserId && { direcaoutilizadoriduser: parseInt(direcaoUserId) }),
+    },
+    include: { estadouso: true, tamanho: true, cor: true, genero: true, modelofigurino: true, itemfigurino: true }
+  });
+
+  return mapFigurino(figurino);
+};
+
+export const updateFigurinoStatusSimple = async (id, statusStr) => {
+  const estadoId = STATUS_MAP[statusStr];
+  if (!estadoId) throw new Error('Status inválido');
+  const figurino = await prisma.figurino.update({
+    where: { idfigurino: parseInt(id) },
+    data: { estadousoidestado: estadoId },
+    include: { estadouso: true, tamanho: true, cor: true, genero: true, modelofigurino: true, itemfigurino: true }
+  });
+  return mapFigurino(figurino);
+};
+
+export const getLookupData = async () => {
+  const [tamanhos, generos, cores, modelos, tipos] = await Promise.all([
+    prisma.tamanho.findMany(),
+    prisma.genero.findMany(),
+    prisma.cor.findMany(),
+    prisma.modelofigurino.findMany({ include: { tipofigurino: true } }),
+    prisma.tipofigurino.findMany(),
+  ]);
+  return { tamanhos, generos, cores, modelos, tipos };
+};
+
+const mapFigurino = (f) => ({
+  id: String(f.idfigurino),
+  nome: f.modelofigurino?.nomemodelo || '',
+  descricao: f.modelofigurino?.descricao || '',
+  tamanho: f.tamanho?.nometamanho || '',
+  imagem: f.modelofigurino?.fotografia || '',
+  localArmazenamento: f.itemfigurino?.localizacao || '',
+  status: ESTADO_TO_STATUS[f.estadousoidestado] || 'DISPONIVEL',
+  tipo: 'ESCOLA',
+  quantidadeTotal: f.quantidadetotal,
+  quantidadeDisponivel: f.quantidadedisponivel,
+  cor: f.cor?.nomecor || '',
+  genero: f.genero?.nomegenero || '',
+  tipofigurinoid: f.modelofigurino?.tipofigurinoidtipofigurino,
+  tamanhoid: f.tamanhoidtamanho,
+  generoid: f.generoidgenero,
+  corid: f.coridcor,
+});

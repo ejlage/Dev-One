@@ -35,7 +35,11 @@ export const updateTransacaoStatus = async (req, reply) => {
   try {
     const { id } = req.params;
     const { estadoidestado } = req.body;
-    const transacao = await aluguerService.updateTransacaoStatus(parseInt(id), estadoidestado);
+    const transacao = await aluguerService.updateTransacaoStatus(
+      parseInt(id),
+      estadoidestado,
+      req.user.id
+    );
     return reply.send({ success: true, data: transacao });
   } catch (error) {
     return reply.status(400).send({ success: false, error: error.message });
@@ -64,8 +68,8 @@ export const getDisponibilidade = async (req, reply) => {
 
 export const getReservasByUser = async (req, reply) => {
   try {
-    const userId = req.user.id;
-    const reservas = await aluguerService.getReservasByUser(userId);
+    const { id: userId, role } = req.user;
+    const reservas = await aluguerService.getReservasByUser(userId, role);
     return reply.send({ success: true, data: reservas });
   } catch (error) {
     return reply.status(400).send({ success: false, error: error.message });

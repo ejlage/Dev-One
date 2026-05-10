@@ -1,62 +1,67 @@
 import prisma from "../config/db.js";
 
+const transacaoInclude = {
+  estado: true,
+  anuncio: { include: { figurino: true } },
+  itemfigurino: true,
+  direcao: { include: { utilizador: true } },
+  encarregadoeducacao: { include: { utilizador: true } },
+  professor: { include: { utilizador: true } },
+};
+
 export const getAllTransacoes = async () => {
-  return prisma.transacaofigurino.findMany({
-    include: {
-      estado: true,
-      anuncio: { include: { figurino: true } },
-      itemfigurino: true,
-      direcao: { include: { utilizador: true } },
-    },
-  });
+  return prisma.transacaofigurino.findMany({ include: transacaoInclude });
 };
 
 export const getTransacaoById = async (id) => {
   return prisma.transacaofigurino.findUnique({
     where: { idtransacao: parseInt(id) },
-    include: {
-      estado: true,
-      anuncio: { include: { figurino: true } },
-      itemfigurino: true,
-      direcao: { include: { utilizador: true } },
-    },
+    include: transacaoInclude,
   });
 };
 
 export const getTransacoesByAnuncio = async (anuncioId) => {
   return prisma.transacaofigurino.findMany({
     where: { anuncioidanuncio: parseInt(anuncioId) },
-    include: {
-      estado: true,
-      itemfigurino: true,
-      direcao: { include: { utilizador: true } },
-    },
+    include: transacaoInclude,
   });
 };
 
 export const createTransacao = async (data) => {
-  const { quantidade, datatransacao, anuncioidanuncio, estadoidestado, itemfigurinoiditem, direcaoutilizadoriduser } = data;
-  
+  const {
+    quantidade,
+    datatransacao,
+    anuncioidanuncio,
+    estadoidestado,
+    itemfigurinoiditem,
+    encarregadoeducacaoutilizadoriduser,
+    professorutilizadoriduser,
+  } = data;
+
+  if (!encarregadoeducacaoutilizadoriduser && !professorutilizadoriduser) {
+    throw new Error("É necessário identificar o requerente (encarregado ou professor)");
+  }
+
   const anuncio = await prisma.anuncio.findUnique({
     where: { idanuncio: parseInt(anuncioidanuncio) },
-    include: { figurino: true }
+    include: { figurino: true },
   });
-  
+
   if (!anuncio) {
     throw new Error("Anúncio não encontrado");
   }
-  
+
   const totalReservado = await prisma.transacaofigurino.aggregate({
     where: { anuncioidanuncio: parseInt(anuncioidanuncio) },
-    _sum: { quantidade: true }
+    _sum: { quantidade: true },
   });
-  
+
   const disponivel = anuncio.quantidade - (totalReservado._sum.quantidade || 0);
-  
+
   if (parseInt(quantidade) > disponivel) {
     throw new Error(`Apenas ${disponivel} unidades disponíveis`);
   }
-  
+
   const transacao = await prisma.transacaofigurino.create({
     data: {
       quantidade: parseInt(quantidade),
@@ -64,33 +69,33 @@ export const createTransacao = async (data) => {
       anuncioidanuncio: parseInt(anuncioidanuncio),
       estadoidestado: parseInt(estadoidestado) || 1,
       itemfigurinoiditem: parseInt(itemfigurinoiditem),
-      direcaoutilizadoriduser: parseInt(direcaoutilizadoriduser),
+      encarregadoeducacaoutilizadoriduser: encarregadoeducacaoutilizadoriduser
+        ? parseInt(encarregadoeducacaoutilizadoriduser)
+        : null,
+      professorutilizadoriduser: professorutilizadoriduser
+        ? parseInt(professorutilizadoriduser)
+        : null,
     },
-    include: {
-      estado: true,
-      anuncio: { include: { figurino: true } },
-      itemfigurino: true,
-    },
+    include: transacaoInclude,
   });
-  
+
   await criarNotificacaoReserva(transacao.idtransacao, anuncioidanuncio);
-  
+
   return transacao;
 };
 
-export const updateTransacaoStatus = async (id, novoEstadoId) => {
+export const updateTransacaoStatus = async (id, novoEstadoId, direcaoUserId) => {
   const transacao = await prisma.transacaofigurino.update({
     where: { idtransacao: parseInt(id) },
-    data: { estadoidestado: parseInt(novoEstadoId) },
-    include: {
-      estado: true,
-      anuncio: { include: { figurino: true } },
-      direcao: { include: { utilizador: true } },
+    data: {
+      estadoidestado: parseInt(novoEstadoId),
+      ...(direcaoUserId && { direcaoutilizadoriduser: parseInt(direcaoUserId) }),
     },
+    include: transacaoInclude,
   });
-  
-  await criarNotificacaoStatus(transacao.idtransacao, transacao.estado.tipoestado);
-  
+
+  await criarNotificacaoStatus(transacao);
+
   return transacao;
 };
 
@@ -125,14 +130,15 @@ export const getDisponibilidadeFigurino = async (anuncioId) => {
   };
 };
 
-export const getReservasByUser = async (userId) => {
+export const getReservasByUser = async (userId, role) => {
+  const where =
+    role === 'PROFESSOR'
+      ? { professorutilizadoriduser: parseInt(userId) }
+      : { encarregadoeducacaoutilizadoriduser: parseInt(userId) };
+
   return prisma.transacaofigurino.findMany({
-    where: { direcaoutilizadoriduser: parseInt(userId) },
-    include: {
-      estado: true,
-      anuncio: { include: { figurino: true } },
-      itemfigurino: true,
-    },
+    where,
+    include: transacaoInclude,
   });
 };
 
@@ -152,19 +158,19 @@ async function criarNotificacaoReserva(transacaoId, anuncioId) {
   }
 }
 
-async function criarNotificacaoStatus(transacaoId, novoEstado) {
-  const transacao = await prisma.transacaofigurino.findUnique({
-    where: { idtransacao: transacaoId },
-    include: { direcao: true }
-  });
-  
-  if (transacao?.direcao) {
+async function criarNotificacaoStatus(transacao) {
+  const novoEstado = transacao.estado.tipoestado;
+  const mensagem = `A sua reserva #${transacao.idtransacao} foi atualizada para ${novoEstado}.`;
+  const tipo = "ALUGUER_" + novoEstado.toUpperCase();
+
+  if (transacao.encarregadoeducacaoutilizadoriduser) {
     await prisma.notificacao.create({
-      data: {
-        mensagem: `Reserva #${transacaoId} atualizada para ${novoEstado}`,
-        tipo: "ALUGUER_" + novoEstado.toUpperCase(),
-        utilizadoriduser: transacao.direcaoutilizadoriduser,
-      },
+      data: { mensagem, tipo, utilizadoriduser: transacao.encarregadoeducacaoutilizadoriduser },
+    });
+  }
+  if (transacao.professorutilizadoriduser) {
+    await prisma.notificacao.create({
+      data: { mensagem, tipo, utilizadoriduser: transacao.professorutilizadoriduser },
     });
   }
 }

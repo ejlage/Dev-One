@@ -100,6 +100,34 @@ export const joinAula = async (req, reply) => {
   }
 };
 
+export const responderSugestaoProfessor = async (req, reply) => {
+  try {
+    const { id } = req.params;
+    const { aceitar } = req.body;
+    if (aceitar === undefined) {
+      return reply.status(400).send({ success: false, error: 'Campo "aceitar" é obrigatório' });
+    }
+    const resultado = await aulasService.responderSugestaoProfessor(id, aceitar, req.user.id);
+    return reply.send({ success: true, data: resultado });
+  } catch (err) {
+    return reply.status(400).send({ success: false, error: err.message });
+  }
+};
+
+export const responderSugestaoEE = async (req, reply) => {
+  try {
+    const { id } = req.params;
+    const { aceitar } = req.body;
+    if (aceitar === undefined) {
+      return reply.status(400).send({ success: false, error: 'Campo "aceitar" é obrigatório' });
+    }
+    const resultado = await aulasService.responderSugestaoEE(id, aceitar, req.user.id);
+    return reply.send({ success: true, data: resultado });
+  } catch (err) {
+    return reply.status(400).send({ success: false, error: err.message });
+  }
+};
+
 export const sugerirNovaData = async (req, reply) => {
   try {
     const { id } = req.params;
