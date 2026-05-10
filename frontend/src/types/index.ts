@@ -13,12 +13,14 @@ export type TipoTransacao = 'VENDA' | 'ALUGUER';
 export type ReservaFigurinoStatus = 'PENDENTE' | 'APROVADA' | 'REJEITADA';
 
 export interface User {
-  iduser: number;
+  id: string;
   nome: string;
   email: string;
   telemovel?: string;
-  role: 'UTILIZADOR' | 'ALUNO' | 'PROFESSOR' | 'ENCARREGADO' | 'DIRECAO';
-  estado?: boolean;
+  role: UserRole;
+  estado?: boolean; // true = ativo, false = inativo
+  encarregadoId?: string; // Se for ALUNO, referência ao encarregado
+  alunosIds?: string[]; // Se for ENCARREGADO, lista de alunos
 }
 
 export interface PedidoAula {
@@ -82,13 +84,13 @@ export interface AnuncioMarketplace {
 
 export interface ReservaFigurino {
   id: string;
-  anuncioId: string;
-  anuncioTitulo: string;
-  usuarioId: string;
+  anunciosId: string;
+  anunciosTitulo: string;
+  usuarioId: number | string;
   usuarioNome: string;
   dataInicio: string;
   dataFim: string;
-  status: ReservaFigurinoStatus;
+  status: string;
   criadoEm: string;
   motivoRejeicao?: string;
 }

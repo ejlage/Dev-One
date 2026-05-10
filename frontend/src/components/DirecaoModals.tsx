@@ -1,10 +1,8 @@
 import { useState } from 'react';
 import { XCircle, RefreshCw, Clock, MapPin, CheckCircle2, AlertCircle, ChevronRight } from 'lucide-react';
 import { PedidoAula } from '../types';
+import { mockDisponibilidades, mockEstudios } from '../data/mockData';
 import { SlotDisponibilidade } from '../types';
-
-const mockDisponibilidades: SlotDisponibilidade[] = [];
-const mockEstudios: { id: string; nome: string }[] = [];
 import { format, addDays, startOfDay } from 'date-fns';
 
 interface DirecaoModalsProps {

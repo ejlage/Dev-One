@@ -1,39 +1,20 @@
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router';
-import { Mail, CheckCircle, AlertCircle } from 'lucide-react';
-
-const API_URL = 'http://localhost:3000/api';
+import { Mail, CheckCircle } from 'lucide-react';
 
 export function ResetPassword() {
   const [email, setEmail] = useState('');
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
 
-  const handleSubmit = async (e: FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
 
-    try {
-      const response = await fetch(`${API_URL}/auth/forgot-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        setSuccess(true);
-      } else {
-        setError(data.error || 'Erro ao enviar email de recuperação');
-      }
-    } catch (err) {
-      setError('Erro de conexão. Tente novamente.');
-    } finally {
+    setTimeout(() => {
+      setSuccess(true);
       setLoading(false);
-    }
+    }, 1500);
   };
 
   if (success) {
@@ -110,13 +91,6 @@ export function ResetPassword() {
           >
             {loading ? 'A enviar...' : 'Recuperar Password'}
           </button>
-
-          {error && (
-            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-              <AlertCircle className="w-4 h-4 flex-shrink-0" />
-              {error}
-            </div>
-          )}
         </form>
 
         <div className="mt-6 text-center">

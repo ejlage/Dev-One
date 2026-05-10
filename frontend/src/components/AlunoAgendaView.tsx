@@ -100,7 +100,7 @@ export function AlunoAgendaView({ aulas, nomeAluno }: AlunoAgendaViewProps) {
                     <div>
                       <div className="flex items-center gap-2 mb-1">
                         <h4 className="text-[#0a1a17]" style={{ fontWeight: 600 }}>
-                          {format(dataAula, "EEEE, d 'de' MMMM", { locale: ptPT })}
+                          {format(dataAula, "EEEE, d 'de' MMMM", { locale: ptBR })}
                         </h4>
                         {diasAte === 0 && (
                           <span className="px-2 py-0.5 bg-[#c9a84c] text-[#0a1a17] rounded text-xs" style={{ fontWeight: 600 }}>

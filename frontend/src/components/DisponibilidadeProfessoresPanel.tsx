@@ -1,8 +1,6 @@
 import { useState } from 'react';
+import { mockUsers, mockDisponibilidades } from '../data/mockData';
 import { SlotDisponibilidade, PedidoAula } from '../types';
-
-const mockUsers: { id: string; nome: string; email: string; role: string }[] = [];
-const mockDisponibilidades: SlotDisponibilidade[] = [];
 import { Clock, MapPin, Music, CalendarDays, ChevronRight, CheckCircle2, AlertCircle } from 'lucide-react';
 import { format, addDays, startOfDay } from 'date-fns';
 

@@ -1,10 +1,7 @@
 import { useState, useRef } from 'react';
 import { X, Printer, ChevronDown, User, CalendarDays } from 'lucide-react';
+import { mockPedidosAulas, mockUsers } from '../data/mockData';
 import { User as UserType, PedidoAula } from '../types';
-
-const mockPedidosAulas: PedidoAula[] = [];
-const mockUsers: UserType[] = [];
-import { Calendar } from './ui/calendar';
 
 interface Props {
   currentUser: UserType;
@@ -51,8 +48,6 @@ export function PrintAulasModal({ currentUser, onClose }: Props) {
 
   const [dateFrom, setDateFrom] = useState<string>(defaultFrom);
   const [dateTo,   setDateTo]   = useState<string>(defaultTo);
-  const [showFromCal, setShowFromCal] = useState(false);
-  const [showToCal, setShowToCal] = useState(false);
 
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -210,49 +205,23 @@ export function PrintAulasModal({ currentUser, onClose }: Props) {
                 <div className="flex items-center gap-3 flex-wrap">
                   <div className="flex flex-col gap-1">
                     <label className="text-xs text-[#4d7068]">De</label>
-                    <div className="relative">
-                      <button
-                        type="button"
-                        onClick={() => setShowFromCal(!showFromCal)}
-                        className="px-3 py-2 rounded-xl border border-[#0d6b5e]/20 bg-white text-sm text-[#0a1a17] focus:outline-none focus:border-[#0d6b5e] transition-colors w-[140px] text-left flex items-center justify-between"
-                      >
-                        <CalendarDays className="w-4 h-4" />
-                        {dateFrom ? formatDateShort(dateFrom) : 'Selecionar'}
-                      </button>
-                      {showFromCal && (
-                        <div className="absolute top-full left-0 z-50 mt-1 bg-white rounded-xl shadow-lg border border-[#0d6b5e]/20 p-2">
-                          <Calendar
-                            mode="single"
-                            selected={dateFrom ? new Date(dateFrom) : undefined}
-                            onSelect={(d) => { setDateFrom(d ? d.toISOString().split('T')[0] : ''); setShowFromCal(false); }}
-                            disabled={(d) => dateTo ? d > new Date(dateTo) : false}
-                          />
-                        </div>
-                      )}
-                    </div>
+                    <input
+                      type="date"
+                      value={dateFrom}
+                      max={dateTo || undefined}
+                      onChange={e => setDateFrom(e.target.value)}
+                      className="px-3 py-2 rounded-xl border border-[#0d6b5e]/20 bg-white text-sm text-[#0a1a17] focus:outline-none focus:border-[#0d6b5e] transition-colors"
+                    />
                   </div>
                   <div className="flex flex-col gap-1">
                     <label className="text-xs text-[#4d7068]">Até</label>
-                    <div className="relative">
-                      <button
-                        type="button"
-                        onClick={() => setShowToCal(!showToCal)}
-                        className="px-3 py-2 rounded-xl border border-[#0d6b5e]/20 bg-white text-sm text-[#0a1a17] focus:outline-none focus:border-[#0d6b5e] transition-colors w-[140px] text-left flex items-center justify-between"
-                      >
-                        <CalendarDays className="w-4 h-4" />
-                        {dateTo ? formatDateShort(dateTo) : 'Selecionar'}
-                      </button>
-                      {showToCal && (
-                        <div className="absolute top-full left-0 z-50 mt-1 bg-white rounded-xl shadow-lg border border-[#0d6b5e]/20 p-2">
-                          <Calendar
-                            mode="single"
-                            selected={dateTo ? new Date(dateTo) : undefined}
-                            onSelect={(d) => { setDateTo(d ? d.toISOString().split('T')[0] : ''); setShowToCal(false); }}
-                            disabled={(d) => dateFrom ? d < new Date(dateFrom) : false}
-                          />
-                        </div>
-                      )}
-                    </div>
+                    <input
+                      type="date"
+                      value={dateTo}
+                      min={dateFrom || undefined}
+                      onChange={e => setDateTo(e.target.value)}
+                      className="px-3 py-2 rounded-xl border border-[#0d6b5e]/20 bg-white text-sm text-[#0a1a17] focus:outline-none focus:border-[#0d6b5e] transition-colors"
+                    />
                   </div>
                   <div className="flex flex-col gap-1 mt-auto">
                     <button

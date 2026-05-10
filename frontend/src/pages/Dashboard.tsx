@@ -1,9 +1,10 @@
-import { useAuth } from '../context/AuthContext';
-import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import { Link } from 'react-router';
 import { Calendar, Clock, CheckCircle2, AlertCircle, ChevronRight, ShoppingBag, Users, BookOpen, Printer } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { PrintAulasModal } from '../components/PrintAulasModal';
+import api from '../services/api';
+import { mockTurmas } from '../data/mockData';
 
 export function Dashboard() {
   const { user } = useAuth();
@@ -15,77 +16,28 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const itemsPerPage = 5;
 
-const mapAulaFromApi = (aula: any) => {
-  const pedido = aula.pedidodeaula || {};
-  const disponibilidade = pedido.disponibilidade || {};
-  const professor = disponibilidade.professor?.utilizador || {};
-  const encarregado = pedido.encarregadoeducacao?.utilizador || {};
-  const sala = aula.sala || pedido.sala || {};
-  const estado = aula.estadoaula?.nomeestadoaula || 'PENDENTE';
-  const alunos = aula.alunoaula || [];
-
-  const data = pedido.data ? new Date(pedido.data) : null;
-  const horaInicioDate = pedido.horainicio ? new Date(pedido.horainicio) : null;
-  const duracaoDate = pedido.duracaoaula ? new Date(pedido.duracaoaula) : null;
-
-  const horaInicio = horaInicioDate
-    ? horaInicioDate.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })
-    : '';
-
-  const duracaoMin = duracaoDate
-    ? duracaoDate.getUTCHours() * 60 + duracaoDate.getUTCMinutes()
-    : 0;
-
-  const horaFim =
-    horaInicioDate && duracaoMin
-      ? new Date(horaInicioDate.getTime() + duracaoMin * 60000).toLocaleTimeString('pt-PT', {
-          hour: '2-digit',
-          minute: '2-digit',
-        })
-      : '';
-
-  return {
-    id: String(aula.idaula),
-    data: data ? data.toISOString() : '',
-    horaInicio,
-    horaFim,
-    status: estado,
-    professorId: professor.iduser ? String(professor.iduser) : '',
-    professorNome: professor.nome || 'Professor',
-    estudioNome: sala.nomesala ? `Sala ${sala.nomesala}` : 'Sem sala',
-    alunoId: alunos[0]?.aluno?.utilizador?.iduser
-      ? String(alunos[0].aluno.utilizador.iduser)
-      : '',
-    alunoNome: alunos.length
-      ? alunos.map((a: any) => a.aluno?.utilizador?.nome).filter(Boolean).join(', ')
-      : 'Sem alunos',
-    encarregadoId: encarregado.iduser ? String(encarregado.iduser) : '',
-  };
-};
-
   useEffect(() => {
-  const fetchData = async () => {
-    try {
-      const aulasRes = await api.getAulas();
-      const aulasMapeadas = (aulasRes.aulas || []).map(mapAulaFromApi);
-
-      setAulas(aulasMapeadas);
-
-      // Ainda sem backend para estas secções
-      setAnuncios([]);
-      setTurmas([]);
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-      setAulas([]);
-      setAnuncios([]);
-      setTurmas([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  fetchData();
-}, []);
+    const fetchData = async () => {
+      if (!user) return;
+      try {
+        const [aulasRes, anunciosRes, turmasRes] = await Promise.all([
+          api.getAulas(),
+          api.getAnuncios(),
+          api.getTurmas()
+        ]);
+        
+        if (aulasRes.success) setAulas(aulasRes.data || []);
+        if (anunciosRes.success) setAnuncios(anunciosRes.data || []);
+        if (turmasRes.success) setTurmas(turmasRes.data || []);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchData();
+  }, [user]);
 
   if (!user) return null;
 
@@ -97,9 +49,9 @@ const mapAulaFromApi = (aula: any) => {
   };
 
   const getFilteredAulas = () => {
-    if (user.role === 'ALUNO') return aulas.filter(a => a.alunoId === String(user.iduser));
-    if (user.role === 'PROFESSOR') return aulas.filter(a => a.professorId === String(user.iduser));
-    if (user.role === 'ENCARREGADO') return aulas.filter(a => a.encarregadoId === String(user.iduser));
+    if (user.role === 'ALUNO') return aulas.filter(a => a.alunoId === user.id);
+    if (user.role === 'PROFESSOR') return aulas.filter(a => a.professorId === user.id);
+    if (user.role === 'ENCARREGADO') return aulas.filter(a => a.encarregadoId === user.id);
     return aulas;
   };
 
@@ -123,10 +75,8 @@ const mapAulaFromApi = (aula: any) => {
     const anunciosAprovados  = meusAnuncios.filter(a => a.status === 'APROVADO').length;
     const anunciosRejeitados = meusAnuncios.filter(a => a.status === 'REJEITADO').length;
 
-    // Turmas do professor
-    const minhasTurmas = turmas.filter(t => t.professorId === user.id);
-    const turmasAbertas = minhasTurmas.filter(t => t.status === 'ABERTA').length;
-    const totalAlunosTurmas = minhasTurmas.reduce((acc, t) => acc + t.alunosInscritos.length, 0);
+    const turmasAbertas = turmas.filter(t => t.status === 'ABERTA').length;
+    const totalAlunosTurmas = turmas.reduce((acc: number, t: any) => acc + (t.alunosInscritos?.length || 0), 0);
 
     return {
       pendentes, agendadas, rejeitadas, realizadas,
@@ -368,7 +318,7 @@ const mapAulaFromApi = (aula: any) => {
         {/* ── Turmas do professor (resumo) ─────────────────────────────────── */}
         {user.role === 'PROFESSOR' && (
           (() => {
-            const minhasTurmas = turmas.filter(t => t.professorId === user.id && t.status !== 'ARQUIVADA');
+            const minhasTurmas = mockTurmas.filter(t => t.professorId === user.id && t.status !== 'ARQUIVADA');
             if (minhasTurmas.length === 0) return null;
             return (
               <div className="bg-white rounded-2xl shadow-sm p-6 mb-8 border border-[#0d6b5e]/10">

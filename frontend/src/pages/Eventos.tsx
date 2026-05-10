@@ -1,7 +1,7 @@
 import { Link } from 'react-router';
+import { useState, useEffect } from 'react';
 import { Calendar, MapPin, ExternalLink, Home } from 'lucide-react';
 import { format } from 'date-fns';
-import { useState, useEffect } from 'react';
 import api from '../services/api';
 
 export function Eventos() {
@@ -11,8 +11,10 @@ export function Eventos() {
   useEffect(() => {
     const fetchEventos = async () => {
       try {
-        const res = await api.getEventos();
-        if (res.success) setEventos(res.data);
+        const result = await api.getEventos();
+        if (result.success && result.data) {
+          setEventos(result.data);
+        }
       } catch (error) {
         console.error('Error fetching eventos:', error);
       } finally {
@@ -24,14 +26,6 @@ export function Eventos() {
 
   const eventosDestaque = eventos.filter(e => e.destaque);
   const outrosEventos = eventos.filter(e => !e.destaque);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#f4f9f8] flex items-center justify-center">
-        <div className="text-[#4d7068]">A carregar eventos...</div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-[#f4f9f8]">

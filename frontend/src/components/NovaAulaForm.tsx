@@ -1,10 +1,7 @@
 import { useState, FormEvent, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
+import { mockUsers, mockPedidosAulas, mockTurmas } from '../data/mockData';
 import { PedidoAula } from '../types';
-
-const mockUsers: { id: string; nome: string; role: string; encarregadoId?: string }[] = [];
-const mockPedidosAulas: PedidoAula[] = [];
-const mockTurmas: { id: string; nome: string; professorId: string; estudoId: string; estudoNome: string; status: string; alunosInscritos: { alunoId: string }[] }[] = [];
 import { AlertCircle, Info, Lock, Users } from 'lucide-react';
 import { toast } from 'sonner';
 

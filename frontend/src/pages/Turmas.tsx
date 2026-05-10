@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
 import { Link } from 'react-router';
-import { NivelTurma, TurmaStatus, Turma, AlunoInscrito } from '../types';
+import { mockUsers, mockEstudios } from '../data/mockData';
+import { Turma, TurmaStatus, NivelTurma, AlunoInscrito } from '../types';
 import api from '../services/api';
 import {
   ArrowLeft, Plus, Users, Clock, MapPin, Calendar, ChevronDown,
@@ -110,25 +111,24 @@ function TurmaCardPreview({ t }: { t: Partial<Turma> }) {
 
 // ── Card gestão (professor / direção) ──────────────────────────────────────
 function TurmaGerirCard({
-  turma, users, onToggleStatus, onArchive, onEdit, onRemoveAluno, onInscreverAluno,
+  turma, onToggleStatus, onArchive, onEdit, onRemoveAluno, onInscreverAluno,
 }: {
-  turma: any;
-  users: any[];
+  turma: Turma;
   onToggleStatus: (id: string) => void;
   onArchive: (id: string) => void;
-  onEdit: (t: any) => void;
+  onEdit: (t: Turma) => void;
   onRemoveAluno?: (turmaId: string, alunoId: string) => void;
   onInscreverAluno?: (turmaId: string, alunoId: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [showInscrever, setShowInscrever] = useState(false);
   const [alunoSel, setAlunoSel] = useState('');
-  const livres = turma.status === 'FECHADA' ? 0 : turma.lotacaoMaxima - turma.alunosInscritos.length;
-  const pct    = turma.lotacaoMaxima > 0 ? (turma.alunosInscritos.length / turma.lotacaoMaxima) * 100 : 0;
-  const dias   = turma.diasSemana.map(d => DIAS[d]).join(' / ');
+  const livres = turma.status === 'FECHADA' ? 0 : turma.lotacaoMaxima || 0 - turma.alunosInscritos?.length || 0;
+  const pct    = turma.lotacaoMaxima || 0 > 0 ? (turma.alunosInscritos?.length || 0 / turma.lotacaoMaxima || 0) * 100 : 0;
+  const dias   = (turma.diasSemana || []).map(d => DIAS[d]).join(' / ');
 
-  const inscritosIds     = turma.alunosInscritos.map(a => a.alunoId);
-  const alunosDisponiveis = users.filter(u => u.role === 'ALUNO' && !inscritosIds.includes(u.id));
+  const inscritosIds     = (turma.alunosInscritos || []).map(a => a.alunoId);
+  const alunosDisponiveis = mockUsers.filter(u => u.role === 'ALUNO' && !inscritosIds.includes(u.id));
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-[#0d6b5e]/5 overflow-hidden hover:shadow-md transition-shadow">
@@ -187,8 +187,8 @@ function TurmaGerirCard({
         {/* Barra de lotação */}
         <div className="mt-4">
           <div className="flex justify-between text-xs mb-1.5">
-            <span className="text-[#4d7068]">{turma.alunosInscritos.length} aluno{turma.alunosInscritos.length !== 1 ? 's' : ''} inscritos</span>
-            <span className="text-[#4d7068]">{livres} vaga{livres !== 1 ? 's' : ''} livre{livres !== 1 ? 's' : ''} / {turma.lotacaoMaxima} total</span>
+            <span className="text-[#4d7068]">{turma.alunosInscritos?.length || 0} aluno{(turma.alunosInscritos?.length || 0) !== 1 ? 's' : ''} inscritos</span>
+            <span className="text-[#4d7068]">{livres} vaga{livres !== 1 ? 's' : ''} livre{livres !== 1 ? 's' : ''} / {turma.lotacaoMaxima || 0} total</span>
           </div>
           <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
             <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(pct, 100)}%`, background: turma.cor }} />
@@ -197,7 +197,7 @@ function TurmaGerirCard({
 
         {/* Ações de gestão de alunos */}
         <div className="mt-3 flex items-center gap-2 flex-wrap">
-          {turma.alunosInscritos.length > 0 && (
+          {turma.alunosInscritos?.length || 0 > 0 && (
             <button onClick={() => setExpanded(!expanded)}
               className="flex items-center gap-1.5 text-sm text-[#0d6b5e] hover:text-[#065147] transition-colors"
               style={{ fontWeight: 500 }}>
@@ -222,9 +222,9 @@ function TurmaGerirCard({
             <p className="text-sm text-[#0a1a17] mb-2" style={{ fontWeight: 600 }}>Selecione o aluno a inscrever:</p>
             <div className="flex gap-2 flex-wrap">
               <select value={alunoSel} onChange={e => setAlunoSel(e.target.value)}
-                className="flex-1 px-3 py-2 border border-[#0d6b5e]/20 rounded-lg bg-white text-sm focus:outline-none focus:border-[#0d6b5e]">
-                <option value="">Escolher aluno���</option>
-                {alunosDisponiveis.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
+                className="flex-1 px-3 py-2 border border-[#0d6b5e]/20 rounded-lg bg-white text-sm focus:outline-none focus:border-[#0d6b5e] text-[#0a1a17]">
+                <option value="">Escolher aluno</option>
+                {(alunosDisponiveis || []).map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
               </select>
               <button
                 onClick={() => { if (alunoSel) { onInscreverAluno(turma.id, alunoSel); setShowInscrever(false); setAlunoSel(''); } }}
@@ -244,7 +244,7 @@ function TurmaGerirCard({
         {/* Lista de alunos expandida */}
         {expanded && (
           <div className="mt-3 space-y-2">
-            {turma.alunosInscritos.map(a => (
+            {(turma.alunosInscritos || []).map(a => (
               <div key={a.alunoId} className="flex items-center justify-between bg-[#f4f9f8] rounded-lg px-3 py-2">
                 <div>
                   <p className="text-sm text-[#0a1a17]" style={{ fontWeight: 500 }}>{a.alunoNome}</p>
@@ -267,21 +267,20 @@ function TurmaGerirCard({
 
 // ── Card para encarregado ──────────────────────────────────────────────────
 function TurmaEncarregadoCard({
-  turma, meusAlunosIds, onInscrever, users,
+  turma, meusAlunosIds, onInscrever,
 }: {
-  turma: any;
+  turma: Turma;
   meusAlunosIds: string[];
   onInscrever: (turmaId: string, alunoId: string) => void;
-  users: any[];
 }) {
   const [showForm, setShowForm] = useState(false);
   const [alunoSel, setAlunoSel] = useState('');
-  const livres = turma.status === 'FECHADA' ? 0 : turma.lotacaoMaxima - turma.alunosInscritos.length;
-  const pct    = turma.lotacaoMaxima > 0 ? (turma.alunosInscritos.length / turma.lotacaoMaxima) * 100 : 0;
-  const dias   = turma.diasSemana.map(d => DIAS[d]).join(' / ');
-  const inscritosIds = turma.alunosInscritos.map(a => a.alunoId);
-  const disponiveis  = users.filter(u => meusAlunosIds.includes(u.id) && !inscritosIds.includes(u.id));
-  const jaInscritos  = users.filter(u => meusAlunosIds.includes(u.id) && inscritosIds.includes(u.id));
+  const livres = turma.status === 'FECHADA' ? 0 : turma.lotacaoMaxima || 0 - turma.alunosInscritos?.length || 0;
+  const pct    = turma.lotacaoMaxima || 0 > 0 ? (turma.alunosInscritos?.length || 0 / turma.lotacaoMaxima || 0) * 100 : 0;
+const dias   = (turma.diasSemana || []).map(d => DIAS[d]).join(' / ');
+  const inscritosIds     = (turma.alunosInscritos || []).map(a => a.alunoId);
+  const disponiveis  = mockUsers.filter(u => meusAlunosIds.includes(u.id) && !inscritosIds.includes(u.id));
+  const jaInscritos  = mockUsers.filter(u => meusAlunosIds.includes(u.id) && inscritosIds.includes(u.id));
 
   return (
     <div className="bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow overflow-hidden border border-black/5">
@@ -316,7 +315,7 @@ function TurmaEncarregadoCard({
 
         <div className="mb-4">
           <div className="flex justify-between text-xs mb-1">
-            <span className="text-[#4d7068]">{turma.alunosInscritos.length}/{turma.lotacaoMaxima} alunos</span>
+            <span className="text-[#4d7068]">{turma.alunosInscritos?.length || 0}/{turma.lotacaoMaxima || 0} alunos</span>
             <span className={
               turma.status === 'FECHADA'
                 ? 'text-amber-600'
@@ -341,7 +340,7 @@ function TurmaEncarregadoCard({
 
         {jaInscritos.length > 0 && (
           <div className="mb-3 flex flex-wrap gap-1.5">
-            {jaInscritos.map(a => (
+            {(jaInscritos || []).map(a => (
               <span key={a.id} className="flex items-center gap-1 text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full" style={{ fontWeight: 500 }}>
                 <CheckCircle className="w-3 h-3" /> {a.nome} — inscrito
               </span>
@@ -363,9 +362,9 @@ function TurmaEncarregadoCard({
                 <p className="text-sm text-[#0a1a17] mb-2" style={{ fontWeight: 600 }}>Selecione o aluno:</p>
                 <div className="flex gap-2 flex-wrap">
                   <select value={alunoSel} onChange={e => setAlunoSel(e.target.value)}
-                    className="flex-1 px-3 py-2 border border-[#0d6b5e]/20 rounded-lg bg-white text-sm focus:outline-none focus:border-[#0d6b5e]">
+                    className="flex-1 px-3 py-2 border border-[#0d6b5e]/20 rounded-lg bg-white text-sm focus:outline-none focus:border-[#0d6b5e] text-[#0a1a17]">
                     <option value="">Escolher…</option>
-                    {disponiveis.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
+                    {(disponiveis || []).map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
                   </select>
                   <button
                     onClick={() => { if (alunoSel) { onInscrever(turma.id, alunoSel); setShowForm(false); setAlunoSel(''); } }}
@@ -404,13 +403,12 @@ const FORM_VAZIO = {
 };
 
 function NovaTurmaForm({
-  user, onSave, onCancel, editando, salas,
+  user, onSave, onCancel, editando,
 }: {
   user: { id: string; nome: string };
-  onSave: (t: any) => void;
+  onSave: (t: Turma) => void;
   onCancel: () => void;
-  editando: any | null;
-  salas: any[];
+  editando: Turma | null;
 }) {
   const [form, setForm] = useState(editando ? {
     nome: editando.nome, modalidade: editando.modalidade, descricao: editando.descricao,
@@ -421,7 +419,7 @@ function NovaTurmaForm({
     status: editando.status, cor: editando.cor, requisitos: editando.requisitos ?? '',
   } : { ...FORM_VAZIO });
 
-  const sala  = salas.find(e => e.id === form.estudioId);
+  const estudio  = mockEstudios.find(e => e.id === form.estudioId);
   const horaFim  = calcHoraFim(form.horaInicio, form.duracao);
 
   const toggleDia = (d: number) =>
@@ -437,12 +435,12 @@ function NovaTurmaForm({
       toast.error('Preencha todos os campos obrigatórios.');
       return;
     }
-    const turma: any = {
+    const turma: Turma = {
       id: editando?.id ?? `turma-${Date.now()}`,
       nome: form.nome, modalidade: form.modalidade, descricao: form.descricao,
       nivel: form.nivel, faixaEtaria: form.faixaEtaria,
       professorId: user.id, professorNome: user.nome,
-      estudioId: form.estudioId, estudioNome: sala?.nomesala ?? '',
+      estudioId: form.estudioId, estudioNome: estudio?.nome ?? '',
       diasSemana: form.diasSemana, horaInicio: form.horaInicio,
       horaFim, duracao: form.duracao,
       lotacaoMaxima: form.lotacaoMaxima,
@@ -456,7 +454,7 @@ function NovaTurmaForm({
     onSave(turma);
   };
 
-  const preview: any = {
+  const preview: Partial<Turma> = {
     ...form, horaFim, professorNome: user.nome,
     estudioNome: estudio?.nome, alunosInscritos: editando?.alunosInscritos ?? [],
   };
@@ -484,7 +482,7 @@ function NovaTurmaForm({
             <div>
               <label className="block text-sm text-[#4d7068] mb-1.5" style={{ fontWeight: 500 }}>Modalidade *</label>
               <select value={form.modalidade} onChange={e => setForm(f => ({ ...f, modalidade: e.target.value }))}
-                className="w-full px-4 py-2.5 border border-[#0d6b5e]/20 rounded-lg bg-[#f4f9f8] text-sm focus:outline-none focus:border-[#0d6b5e]">
+                className="w-full px-4 py-2.5 border border-[#0d6b5e]/20 rounded-lg bg-[#f4f9f8] text-sm focus:outline-none focus:border-[#0d6b5e] text-[#0a1a17]">
                 <option value="">Selecionar…</option>
                 {MODALIDADES.map(m => <option key={m} value={m}>{m}</option>)}
               </select>
@@ -492,7 +490,7 @@ function NovaTurmaForm({
             <div>
               <label className="block text-sm text-[#4d7068] mb-1.5" style={{ fontWeight: 500 }}>Nível</label>
               <select value={form.nivel} onChange={e => setForm(f => ({ ...f, nivel: e.target.value as NivelTurma }))}
-                className="w-full px-4 py-2.5 border border-[#0d6b5e]/20 rounded-lg bg-[#f4f9f8] text-sm focus:outline-none focus:border-[#0d6b5e]">
+                className="w-full px-4 py-2.5 border border-[#0d6b5e]/20 rounded-lg bg-[#f4f9f8] text-sm focus:outline-none focus:border-[#0d6b5e] text-[#0a1a17]">
                 {NIVEIS.map(n => <option key={n} value={n}>{n}</option>)}
               </select>
             </div>
@@ -539,7 +537,7 @@ function NovaTurmaForm({
             <div>
               <label className="block text-sm text-[#4d7068] mb-1.5" style={{ fontWeight: 500 }}>Duração</label>
               <select value={form.duracao} onChange={e => setForm(f => ({ ...f, duracao: Number(e.target.value) }))}
-                className="w-full px-4 py-2.5 border border-[#0d6b5e]/20 rounded-lg bg-[#f4f9f8] text-sm focus:outline-none focus:border-[#0d6b5e]">
+                className="w-full px-4 py-2.5 border border-[#0d6b5e]/20 rounded-lg bg-[#f4f9f8] text-sm focus:outline-none focus:border-[#0d6b5e] text-[#0a1a17]">
                 {[30, 45, 60, 75, 90, 120].map(d => <option key={d} value={d}>{d} min</option>)}
               </select>
               {horaFim && <p className="mt-1 text-xs text-[#0d6b5e]">Término: {horaFim}</p>}
@@ -547,9 +545,9 @@ function NovaTurmaForm({
             <div>
               <label className="block text-sm text-[#4d7068] mb-1.5" style={{ fontWeight: 500 }}>Estúdio *</label>
               <select value={form.estudioId} onChange={e => setForm(f => ({ ...f, estudioId: e.target.value }))}
-                className="w-full px-4 py-2.5 border border-[#0d6b5e]/20 rounded-lg bg-[#f4f9f8] text-sm focus:outline-none focus:border-[#0d6b5e]">
+                className="w-full px-4 py-2.5 border border-[#0d6b5e]/20 rounded-lg bg-[#f4f9f8] text-sm focus:outline-none focus:border-[#0d6b5e] text-[#0a1a17]">
                 <option value="">Selecionar…</option>
-                {salas.map(e => <option key={e.id} value={e.id}>{e.nomesala} (cap. {e.capacidade})</option>)}
+                {mockEstudios.map(e => <option key={e.id} value={e.id}>{e.nome} (cap. {e.capacidade})</option>)}
               </select>
             </div>
             <div>
@@ -653,42 +651,36 @@ function NovaTurmaForm({
 // ══════════════════════════════════════════════════════════════════════════════
 export function Turmas() {
   const { user } = useAuth();
-  const [turmas, setTurmas] = useState<any[]>([]);
-  const [users, setUsers] = useState<any[]>([]);
-  const [salas, setSalas] = useState<any[]>([]);
+  const [turmas, setTurmas] = useState<Turma[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [editando, setEditando] = useState<any>(null);
+  const [editando, setEditando] = useState<Turma | null>(null);
   const [filtroModalidade, setFiltroModalidade] = useState('TODAS');
   const [filtroNivel, setFiltroNivel] = useState('TODOS');
   const [filtroProf, setFiltroProf] = useState('TODOS');
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchTurmas = async () => {
       try {
-        const [turmasRes, usersRes, salasRes] = await Promise.all([
-          api.getTurmas(),
-          api.getUsers(),
-          api.getSalas()
-        ]);
-        if (turmasRes.success) setTurmas(turmasRes.data);
-        if (usersRes.success) setUsers(usersRes.data);
-        if (salasRes.success) setSalas(salasRes.data);
+        const result = await api.getTurmas();
+        if (result.success && result.data) {
+          setTurmas(result.data);
+        }
       } catch (error) {
-        console.error('Error fetching data:', error);
+        console.error('Error fetching turmas:', error);
       } finally {
         setLoading(false);
       }
     };
-    fetchData();
+    fetchTurmas();
   }, []);
 
   if (!user) return null;
 
-  const todasModalidades  = Array.from(new Set(turmas.map((t: any) => t.modalidade))).sort();
-  const todosProfessores  = users.filter((u: any) => u.role === 'PROFESSOR');
+  const todasModalidades  = Array.from(new Set((turmas || []).map(t => t.modalidade))).sort();
+  const todosProfessores  = mockUsers.filter(u => u.role === 'PROFESSOR');
 
-  const turmasFiltradas = turmas.filter(t => {
+const turmasFiltradas = (turmas || []).filter(t => {
     if (user.role === 'PROFESSOR' && t.professorId !== user.id) return false;
     if (filtroModalidade !== 'TODAS' && t.modalidade !== filtroModalidade) return false;
     if (filtroNivel !== 'TODOS' && t.nivel !== filtroNivel) return false;
@@ -696,7 +688,7 @@ export function Turmas() {
     return true;
   });
 
-  const turmasParaEnc = turmas.filter(t => {
+  const turmasParaEnc = (turmas || []).filter(t => {
     if (t.status === 'ARQUIVADA') return false;
     if (filtroModalidade !== 'TODAS' && t.modalidade !== filtroModalidade) return false;
     if (filtroNivel !== 'TODOS' && t.nivel !== filtroNivel) return false;
@@ -705,8 +697,8 @@ export function Turmas() {
 
   const handleSave = (nova: Turma) => {
     setTurmas(prev => {
-      const idx = prev.findIndex(t => t.id === nova.id);
-      return idx >= 0 ? prev.map(t => t.id === nova.id ? nova : t) : [nova, ...prev];
+      const idx = (prev || []).findIndex(t => t.id === nova.id);
+      return idx >= 0 ? (prev || []).map(t => t.id === nova.id ? nova : t) : [nova, ...(prev || [])];
     });
     setShowForm(false);
     setEditando(null);
@@ -714,7 +706,7 @@ export function Turmas() {
   };
 
   const handleToggleStatus = (id: string) => {
-    setTurmas(prev => prev.map(t => {
+    setTurmas(prev => (prev || []).map(t => {
       if (t.id !== id) return t;
       const novo: TurmaStatus = t.status === 'ABERTA' ? 'FECHADA' : 'ABERTA';
       toast.success(`Inscrições ${novo === 'ABERTA' ? 'abertas' : 'fechadas'} para "${t.nome}"`);
@@ -723,28 +715,28 @@ export function Turmas() {
   };
 
   const handleArchive = (id: string) => {
-    setTurmas(prev => prev.map(t => t.id === id ? { ...t, status: 'ARQUIVADA' } : t));
+    setTurmas(prev => (prev || []).map(t => t.id === id ? { ...t, status: 'ARQUIVADA' } : t));
     toast.info('Grupo arquivado.');
   };
 
   const handleRemoveAluno = (turmaId: string, alunoId: string) => {
-    setTurmas(prev => prev.map(t => t.id !== turmaId ? t : {
-      ...t, alunosInscritos: t.alunosInscritos.filter(a => a.alunoId !== alunoId),
+    setTurmas(prev => (prev || []).map(t => t.id !== turmaId ? t : {
+      ...t, alunosInscritos: (t.alunosInscritos || []).filter(a => a.alunoId !== alunoId),
     }));
     toast.info('Aluno removido do grupo.');
   };
 
   const handleInscrever = (turmaId: string, alunoId: string) => {
-    const aluno = users.find(u => u.id === alunoId);
+    const aluno = mockUsers.find(u => u.id === alunoId);
     if (!aluno) return;
-    setTurmas(prev => prev.map(t => {
+    setTurmas(prev => (prev || []).map(t => {
       if (t.id !== turmaId) return t;
       const nova: AlunoInscrito = {
         alunoId, alunoNome: aluno.nome,
         encarregadoId: aluno.encarregadoId ?? user.id,
         inscritoEm: new Date().toISOString(),
       };
-      return { ...t, alunosInscritos: [...t.alunosInscritos, nova] };
+      return { ...t, alunosInscritos: [...(t.alunosInscritos || []), nova] };
     }));
     toast.success(`${aluno.nome} inscrito com sucesso!`);
   };
@@ -801,13 +793,13 @@ export function Turmas() {
               ))}
               <span className="text-white/20 mx-1">|</span>
               <select value={filtroNivel} onChange={e => setFiltroNivel(e.target.value)}
-                className="px-3 py-1.5 rounded-lg text-sm bg-white/10 text-white border border-white/20 focus:outline-none focus:border-[#c9a84c]">
+                className="px-3 py-1.5 rounded-lg text-sm bg-white/10 text-white border border-white/20 focus:outline-none focus:border-[#c9a84c] text-white">
                 <option value="TODOS">Todos os níveis</option>
                 {NIVEIS.map(n => <option key={n} value={n}>{n}</option>)}
               </select>
               {user.role === 'DIRECAO' && (
                 <select value={filtroProf} onChange={e => setFiltroProf(e.target.value)}
-                  className="px-3 py-1.5 rounded-lg text-sm bg-white/10 text-white border border-white/20 focus:outline-none focus:border-[#c9a84c]">
+                  className="px-3 py-1.5 rounded-lg text-sm bg-white/10 text-white border border-white/20 focus:outline-none focus:border-[#c9a84c] text-white">
                   <option value="TODOS">Todos os professores</option>
                   {todosProfessores.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
                 </select>
@@ -828,7 +820,6 @@ export function Turmas() {
               onSave={handleSave}
               onCancel={() => { setShowForm(false); setEditando(null); }}
               editando={editando}
-              salas={salas}
             />
           </div>
         )}
@@ -864,15 +855,14 @@ export function Turmas() {
                     );
                   })}
                   <span className="text-sm px-3 py-1 rounded-full bg-[#e2f0ed] text-[#0d6b5e]" style={{ fontWeight: 600 }}>
-                    {turmasFiltradas.reduce((acc, t) => acc + t.alunosInscritos.length, 0)} alunos inscritos
+                    {turmasFiltradas.reduce((acc, t) => acc + (t.alunosInscritos?.length || 0), 0)} alunos inscritos
                   </span>
                 </div>
                 <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-5">
-                  {turmasFiltradas.map(t => (
+                  {(turmasFiltradas || []).map(t => (
                     <TurmaGerirCard
                       key={t.id}
                       turma={t}
-                      users={users}
                       onToggleStatus={handleToggleStatus}
                       onArchive={handleArchive}
                       onEdit={tt => { setEditando(tt); setShowForm(true); }}
@@ -898,16 +888,15 @@ export function Turmas() {
               <>
                 <p className="text-sm text-[#4d7068] mb-5">
                   <span style={{ fontWeight: 600 }}>{turmasParaEnc.filter(t => t.status === 'ABERTA').length}</span> turmas com inscrições abertas ·{' '}
-                  <span style={{ fontWeight: 600 }}>{turmasParaEnc.filter(t => t.status === 'ABERTA').reduce((acc, t) => acc + (t.lotacaoMaxima - t.alunosInscritos.length), 0)}</span> vagas disponíveis no total
+                  <span style={{ fontWeight: 600 }}>{turmasParaEnc.filter(t => t.status === 'ABERTA').reduce((acc, t) => acc + ((t.lotacaoMaxima || 0) - (t.alunosInscritos?.length || 0)), 0)}</span> vagas disponíveis no total
                 </p>
                 <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-5">
-                  {turmasParaEnc.map(t => (
+                  {(turmasParaEnc || []).map(t => (
                     <TurmaEncarregadoCard
                       key={t.id}
                       turma={t}
                       meusAlunosIds={user.alunosIds ?? []}
                       onInscrever={handleInscrever}
-                      users={users}
                     />
                   ))}
                 </div>
@@ -919,7 +908,7 @@ export function Turmas() {
         {/* ALUNO */}
         {user.role === 'ALUNO' && (
           <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-5">
-            {turmas.filter(t => t.alunosInscritos.some(a => a.alunoId === user.id)).map(t => (
+            {(turmas || []).filter(t => (t.alunosInscritos || []).some(a => a.alunoId === user.id)).map(t => (
               <div key={t.id} className="bg-white rounded-2xl shadow-sm border border-[#0d6b5e]/5 overflow-hidden">
                 <div className="h-3" style={{ background: t.cor }} />
                 <div className="p-5">
@@ -930,7 +919,7 @@ export function Turmas() {
                   <h3 className="text-[#0a1a17] mb-1" style={{ fontWeight: 700 }}>{t.nome}</h3>
                   <p className="text-sm text-[#4d7068] mb-3">{t.descricao}</p>
                   <div className="space-y-1 text-sm text-[#4d7068]">
-                    <div className="flex gap-2"><Calendar className="w-3.5 h-3.5 text-[#0d6b5e] mt-0.5" />{t.diasSemana.map(d => DIAS[d]).join(' / ')}</div>
+                    <div className="flex gap-2"><Calendar className="w-3.5 h-3.5 text-[#0d6b5e] mt-0.5" />{(t.diasSemana || []).map(d => DIAS[d]).join(' / ')}</div>
                     <div className="flex gap-2"><Clock className="w-3.5 h-3.5 text-[#0d6b5e] mt-0.5" />{t.horaInicio}–{t.horaFim}</div>
                     <div className="flex gap-2"><UserCheck className="w-3.5 h-3.5 text-[#0d6b5e] mt-0.5" />Prof. {t.professorNome}</div>
                   </div>

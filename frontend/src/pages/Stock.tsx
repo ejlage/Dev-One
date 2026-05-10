@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router';
+import { mockUsers } from '../data/mockData';
+import { Figurino, FigurinoStatus } from '../types';
 import api from '../services/api';
 import { Package, ArrowLeft, Plus, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
 import { Toaster } from '../components/ui/sonner';
 
 export function Stock() {
-  const [figurinos, setFigurinos] = useState<any[]>([]);
-  const [users, setUsers] = useState<any[]>([]);
+  const [figurinos, setFigurinos] = useState<Figurino[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filtroStatus, setFiltroStatus] = useState<string>('TODOS');
+  const [filtroStatus, setFiltroStatus] = useState<'TODOS' | FigurinoStatus>('TODOS');
   const [showNovoForm, setShowNovoForm] = useState(false);
   const [novoFigurino, setNovoFigurino] = useState({
     nome: '',
@@ -18,32 +19,28 @@ export function Stock() {
     imagem: '',
     localArmazenamento: ''
   });
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [figurinosRes, usersRes] = await Promise.all([
-          api.getFigurinos(),
-          api.getUsers()
-        ]);
-        if (figurinosRes.success) setFigurinos(figurinosRes.data);
-        if (usersRes.success) setUsers(usersRes.data);
-      } catch (error) {
-        console.error('Error fetching stock data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, []);
-
-  const figurinosEscola = figurinos.filter(f => f.tipo === 'ESCOLA' || !f.tipo);
   const [showAluguelForm, setShowAluguelForm] = useState<string | null>(null);
   const [dadosAluguel, setDadosAluguel] = useState({
     usuarioId: '',
     dataInicio: '',
     dataFim: ''
   });
+
+  useEffect(() => {
+    const fetchFigurinos = async () => {
+      try {
+        const result = await api.getFigurinos();
+        if (result.success && result.data) {
+          setFigurinos(result.data.filter((f: any) => f.tipo === 'ESCOLA'));
+        }
+      } catch (error) {
+        console.error('Error fetching figurinos:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchFigurinos();
+  }, []);
 
   const getFigurinosFiltrados = () => {
     if (filtroStatus === 'TODOS') return figurinos;
@@ -81,7 +78,7 @@ export function Stock() {
       return;
     }
 
-    const usuario = users.find(u => u.id === dadosAluguel.usuarioId);
+    const usuario = mockUsers.find(u => u.id === dadosAluguel.usuarioId);
     if (!usuario) {
       toast.error('Usuário não encontrado');
       return;
@@ -136,7 +133,7 @@ export function Stock() {
   };
 
   const figurinosFiltrados = getFigurinosFiltrados();
-  const todosUsuarios = users.filter(u => u.role !== 'DIRECAO');
+  const todosUsuarios = mockUsers.filter(u => u.role !== 'DIRECAO');
 
   return (
     <div className="min-h-screen bg-[#f4f9f8]">
@@ -248,15 +245,15 @@ export function Stock() {
                   <select
                     value={novoFigurino.tamanho}
                     onChange={(e) => setNovoFigurino({...novoFigurino, tamanho: e.target.value})}
-                    className="w-full px-4 py-2 border border-[#0d6b5e]/20 rounded-lg bg-[#f4f9f8] focus:outline-none focus:border-[#0d6b5e]"
+                    className="w-full px-4 py-2 border border-[#0d6b5e]/20 rounded-lg bg-[#f4f9f8] focus:outline-none focus:border-[#0d6b5e] text-[#0a1a17]"
                     required
                   >
                     <option value="">Selecione o tamanho</option>
-                    <option value="XS">XS</option>
-                    <option value="S">S</option>
+                    <option value="PP">PP</option>
+                    <option value="P">P</option>
                     <option value="M">M</option>
-                    <option value="L">L</option>
-                    <option value="XL">XL</option>
+                    <option value="G">G</option>
+                    <option value="GG">GG</option>
                   </select>
                 </div>
 
@@ -388,7 +385,7 @@ export function Stock() {
                             <select
                               value={dadosAluguel.usuarioId}
                               onChange={(e) => setDadosAluguel({...dadosAluguel, usuarioId: e.target.value})}
-                              className="w-full px-3 py-2 text-sm border border-[#0d6b5e]/20 rounded-lg"
+                              className="w-full px-3 py-2 text-sm border border-[#0d6b5e]/20 rounded-lg text-[#0a1a17]"
                             >
                               <option value="">Selecione o usuário</option>
                               {todosUsuarios.map(u => (

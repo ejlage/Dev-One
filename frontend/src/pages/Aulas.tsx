@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
 import { Link } from 'react-router';
+import { mockEstudios, mockUsers } from '../data/mockData';
+import { PedidoAula, AulaStatus } from '../types';
 import api from '../services/api';
 import {
   Calendar, Clock, MapPin, User, CheckCircle, XCircle,
@@ -31,11 +33,9 @@ const getModalidadeStyle = (modalidade: string) =>
 
 export function Aulas() {
   const { user } = useAuth();
-  const [aulas, setAulas] = useState<any[]>([]);
-  const [salas, setSalas] = useState<any[]>([]);
-  const [users, setUsers] = useState<any[]>([]);
+  const [aulas, setAulas] = useState<PedidoAula[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filtroStatus, setFiltroStatus] = useState<string>('ATIVAS');
+  const [filtroStatus, setFiltroStatus] = useState<AulaStatus | 'TODAS' | 'ATIVAS'>('ATIVAS');
   const [filtroProfessor, setFiltroProfessor] = useState<string>('TODOS');
   const [filtroEstudio, setFiltroEstudio] = useState<string>('TODOS');
   const [filtroModalidade, setFiltroModalidade] = useState<string>('TODAS');
@@ -50,87 +50,21 @@ export function Aulas() {
   const [joinAlunoSelecionado, setJoinAlunoSelecionado] = useState<string>('');
   const [direcaoCancelarModal, setDirecaoCancelarModal] = useState<string | null>(null);
 
-  //add ultimoaulaid para facilitar ordenação e evitar problemas de aulas com data/hora iguais em ultimo
-  const mapAulaFromApi = (aula: any) => {
-  const pedido = aula.pedidodeaula || {};
-  const disponibilidade = pedido.disponibilidade || {};
-  const professor = disponibilidade.professor?.utilizador || {};
-  const encarregado = pedido.encarregadoeducacao?.utilizador || {};
-  const sala = aula.sala || pedido.sala || {};
-  const estado = aula.estadoaula?.nomeestadoaula || 'PENDENTE';
-  const alunos = aula.alunoaula || [];
-
-  const data = pedido.data ? new Date(pedido.data) : null;
-  const horaInicioDate = pedido.horainicio ? new Date(pedido.horainicio) : null;
-  const duracaoDate = pedido.duracaoaula ? new Date(pedido.duracaoaula) : null;
-
-  const horaInicio = horaInicioDate
-    ? horaInicioDate.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })
-    : '';
-
-  const duracaoMin = duracaoDate
-    ? duracaoDate.getUTCHours() * 60 + duracaoDate.getUTCMinutes()
-    : 0;
-
-  const horaFim =
-    horaInicioDate && duracaoMin
-      ? new Date(horaInicioDate.getTime() + duracaoMin * 60000).toLocaleTimeString('pt-PT', {
-          hour: '2-digit',
-          minute: '2-digit',
-        })
-      : '';
-
-  return {
-    id: String(aula.idaula),
-    data: data ? data.toISOString() : '',
-    horaInicio,
-    horaFim,
-    duracao: duracaoMin,
-    status: estado,
-    professorId: professor.iduser ? String(professor.iduser) : '',
-    professorNome: professor.nome || 'Professor',
-    estudioId: sala.idsala ? String(sala.idsala) : '',
-    estudioNome: sala.nomesala ? `Sala ${sala.nomesala}` : 'Sem sala',
-    alunoId: alunos[0]?.aluno?.utilizador?.iduser
-      ? String(alunos[0].aluno.utilizador.iduser)
-      : '',
-    alunoNome: alunos.length
-      ? alunos.map((a: any) => a.aluno?.utilizador?.nome).filter(Boolean).join(', ')
-      : 'Sem alunos',
-    encarregadoId: encarregado.iduser ? String(encarregado.iduser) : '',
-    modalidade: disponibilidade.modalidadeprofessor?.modalidade?.nome || 'Sem modalidade',
-    participantes: alunos.map((a: any) => ({
-      alunoId: a.aluno?.utilizador?.iduser ? String(a.aluno.utilizador.iduser) : '',
-      alunoNome: a.aluno?.utilizador?.nome || '',
-    })),
-    observacoes: '',
-    motivoRejeicao: '',
-  };
-};
-
   useEffect(() => {
-  const fetchData = async () => {
-    try {
-      const aulasRes = await api.getAulas();
-      const aulasMapeadas = (aulasRes.aulas || []).map(mapAulaFromApi);
-
-      setAulas(aulasMapeadas);
-
-      // Ainda não há backend para estas listas
-      setSalas([]);
-      setUsers([]);
-    } catch (error) {
-      console.error('Error fetching aulas data:', error);
-      setAulas([]);
-      setSalas([]);
-      setUsers([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  fetchData();
-}, []);
+    const fetchAulas = async () => {
+      try {
+        const result = await api.getAulas();
+        if (result.success && result.data) {
+          setAulas(result.data);
+        }
+      } catch (error) {
+        console.error('Error fetching aulas:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAulas();
+  }, []);
 
   if (!user) return null;
 
@@ -180,8 +114,8 @@ export function Aulas() {
 
   // ── Lotação ───────────────────────────────────────────────────────────────
 
-  const getCapacidade = (aula: any) =>
-    salas.find(e => e.id === aula.estudioId)?.capacidade ?? 0;
+  const getCapacidade = (aula: PedidoAula) =>
+    mockEstudios.find(e => e.id === aula.estudioId)?.capacidade ?? 0;
 
   const getOcupacao = (aula: PedidoAula) =>
     aula.participantes?.length ? aula.participantes.length : 1;
@@ -197,13 +131,13 @@ export function Aulas() {
 
   // ── Juntar-se ─────────────────────────────────────────────────────────────
 
-  const getAlunosDisponiveis = (aula: any) => {
+  const getAlunosDisponiveis = (aula: PedidoAula) => {
     if (user.role !== 'ENCARREGADO') return [];
-    const ids = aula.participantes?.map((p: any) => p.alunoId) ?? [aula.alunoId];
-    return users.filter(u => (user.alunosIds ?? []).includes(u.id) && !ids.includes(u.id));
+    const ids = aula.participantes?.map(p => p.alunoId) ?? [aula.alunoId];
+    return mockUsers.filter(u => (user.alunosIds ?? []).includes(u.id) && !ids.includes(u.id));
   };
 
-  const podeJuntar = (aula: any): boolean => {
+  const podeJuntar = (aula: PedidoAula): boolean => {
     if (aula.status !== 'PENDENTE') return false;
     if (getLivres(aula) <= 0) return false;
     if (user.role === 'DIRECAO' || user.role === 'PROFESSOR') return false;
@@ -221,7 +155,7 @@ export function Aulas() {
     if (user.role === 'ALUNO') {
       novo = { alunoId: user.id, alunoNome: user.nome };
     } else if (user.role === 'ENCARREGADO') {
-      const aluno = users.find(u => u.id === joinAlunoSelecionado);
+      const aluno = mockUsers.find(u => u.id === joinAlunoSelecionado);
       if (!aluno) { toast.error('Selecione um aluno.'); return; }
       novo = { alunoId: aluno.id, alunoNome: aluno.nome, encarregadoId: user.id };
     }
@@ -508,7 +442,7 @@ export function Aulas() {
 
   const aulasFiltradas = getAulasFiltradas();
   const aulasDisponiveisParaInscricao = getAulasDisponiveisParaInscricao();
-  const professores = users.filter(u => u.role === 'PROFESSOR');
+  const professores = mockUsers.filter(u => u.role === 'PROFESSOR');
 
   const showSubTabs = user.role === 'ENCARREGADO';
 
@@ -559,15 +493,15 @@ export function Aulas() {
         <div className="flex items-center gap-3 flex-wrap">
           <span className="text-sm text-white/50">Professor:</span>
           <select value={filtroProfessor} onChange={e => setFiltroProfessor(e.target.value)}
-            className="px-3 py-1.5 rounded-lg text-sm bg-white/10 text-white border border-white/20 focus:outline-none focus:border-[#c9a84c]">
+            className="px-3 py-1.5 rounded-lg text-sm bg-white/10 text-white border border-white/20 focus:outline-none focus:border-[#c9a84c] text-white">
             <option value="TODOS">Todos</option>
             {professores.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
           </select>
           <span className="text-sm text-white/50">Estúdio:</span>
           <select value={filtroEstudio} onChange={e => setFiltroEstudio(e.target.value)}
-            className="px-3 py-1.5 rounded-lg text-sm bg-white/10 text-white border border-white/20 focus:outline-none focus:border-[#c9a84c]">
+            className="px-3 py-1.5 rounded-lg text-sm bg-white/10 text-white border border-white/20 focus:outline-none focus:border-[#c9a84c] text-white">
             <option value="TODOS">Todos</option>
-            {salas.map(e => <option key={e.id} value={e.id}>{e.nomesala}</option>)}
+            {mockEstudios.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
           </select>
         </div>
       )}
