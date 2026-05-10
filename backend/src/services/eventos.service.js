@@ -22,17 +22,32 @@ const mapEvento = (e) => ({
   criadopor: e.direcaoutilizadoriduser ? String(e.direcaoutilizadoriduser) : null,
 });
 
-export const getAllEventos = async () => {
+/**
+ * Obtém todos os eventos.
+ * 
+ * @returns {Promise<any>} {Promise<object[]>}
+ */
+
   const eventos = await prisma.evento.findMany({ orderBy: { dataevento: 'asc' } });
   return eventos.map(mapEvento);
 };
 
-export const getEventoById = async (id) => {
+/**
+ * Obtém evento pelo ID.
+ * @param {string|number} id
+ * @returns {Promise<any>} {Promise<object|null>}
+ */
+
   const evento = await prisma.evento.findUnique({ where: { idevento: id } });
   return evento ? mapEvento(evento) : null;
 };
 
-export const createEvento = async (data, userId, userNome = '') => {
+/**
+ * Cria evento.
+ * @param {object} data @param {number} userId
+ * @returns {Promise<any>} {Promise<object>}
+ */
+
   const { titulo, descricao, data: dataevento, datafim, local, imagem, linkBilhetes, destaque, publicado } = data;
   const isPublicado = publicado === true || publicado === 'true';
   const evento = await prisma.evento.create({
@@ -58,7 +73,12 @@ export const createEvento = async (data, userId, userNome = '') => {
   return mapEvento(evento);
 };
 
-export const updateEvento = async (id, data, userId = null, userNome = '') => {
+/**
+ * Atualiza evento.
+ * @param {string|number} id @param {object} data
+ * @returns {Promise<any>} {Promise<object>}
+ */
+
   const exists = await prisma.evento.findUnique({ where: { idevento: id } });
   if (!exists) throw new Error("Evento não encontrado");
 
@@ -87,7 +107,12 @@ export const updateEvento = async (id, data, userId = null, userNome = '') => {
   return mapEvento(evento);
 };
 
-export const deleteEvento = async (id, userId = null, userNome = '') => {
+/**
+ * Elimina evento.
+ * @param {string|number} id
+ * @returns {Promise<any>} {Promise<void>}
+ */
+
   const exists = await prisma.evento.findUnique({ where: { idevento: id } });
   if (!exists) throw new Error("Evento não encontrado");
   await prisma.evento.delete({ where: { idevento: id } });
@@ -97,7 +122,12 @@ export const deleteEvento = async (id, userId = null, userNome = '') => {
   return { message: "Evento eliminado com sucesso" };
 };
 
-export const publishEvento = async (id, userId = null, userNome = '') => {
+/**
+ * Publica/despublica evento.
+ * @param {string|number} id
+ * @returns {Promise<any>} {Promise<object>}
+ */
+
   const exists = await prisma.evento.findUnique({ where: { idevento: id } });
   if (!exists) throw new Error("Evento não encontrado");
   const isPublishing = !exists.publicado;

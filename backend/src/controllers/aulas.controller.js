@@ -9,7 +9,7 @@ export const listarAulas = async (req, reply) => {
   }
 };
 
-export const getAulaById = async (req, reply) => {
+export const consultarAula = async (req, reply) => {
   try {
     const { id } = req.params;
     const aula = await aulasService.consultarAula(id);

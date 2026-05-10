@@ -1,6 +1,11 @@
 import prisma from "../config/db.js";
 
-export const getAllSalas = async () => {
+/**
+ * Obtém todas as salas.
+ * 
+ * @returns {Promise<any>} {Promise<object[]>}
+ */
+
   const salas = await prisma.sala.findMany({
     include: {
       estadosala: true,
@@ -10,7 +15,12 @@ export const getAllSalas = async () => {
   return salas;
 };
 
-export const getSalaById = async (id) => {
+/**
+ * Obtém sala pelo ID.
+ * @param {string|number} id
+ * @returns {Promise<any>} {Promise<object|null>}
+ */
+
   const sala = await prisma.sala.findUnique({
     where: { idsala: id },
     include: {
@@ -21,7 +31,12 @@ export const getSalaById = async (id) => {
   return sala;
 };
 
-export const createSala = async (data) => {
+/**
+ * Cria sala.
+ * @param {object} data
+ * @returns {Promise<any>} {Promise<object>}
+ */
+
   const { nomesala, capacidade, estadosalaidestadosala, tiposalaidtiposala } = data;
 
   const sala = await prisma.sala.create({
@@ -40,7 +55,12 @@ export const createSala = async (data) => {
   return sala;
 };
 
-export const updateSala = async (id, data) => {
+/**
+ * Atualiza sala.
+ * @param {string|number} id @param {object} data
+ * @returns {Promise<any>} {Promise<object>}
+ */
+
   const { nomesala, capacidade, estadosalaidestadosala, tiposalaidtiposala } = data;
 
   const existingSala = await prisma.sala.findUnique({
@@ -69,7 +89,12 @@ export const updateSala = async (id, data) => {
   return sala;
 };
 
-export const deleteSala = async (id) => {
+/**
+ * Elimina sala.
+ * @param {string|number} id
+ * @returns {Promise<any>} {Promise<void>}
+ */
+
   const existingSala = await prisma.sala.findUnique({
     where: { idsala: id }
   });

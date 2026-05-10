@@ -3,7 +3,12 @@ import bcrypt from "bcrypt";
 import { createAuditLog } from "./audit.service.js";
 
 // Returns all users without passwords
-export const getAllUsers = async () => {
+/**
+ * Obtém todos os utilizadores.
+ * 
+ * @returns {Promise<any>} {Promise<object[]>}
+ */
+
   const users = await prisma.utilizador.findMany({
     select: {
       iduser: true,
@@ -80,7 +85,12 @@ export const getAllUsers = async () => {
 };
 
 // Returns user by ID without password
-export const getUserById = async (id) => {
+/**
+ * Obtém utilizador pelo ID.
+ * @param {string|number} id
+ * @returns {Promise<any>} {Promise<object|null>}
+ */
+
   const user = await prisma.utilizador.findUnique({
     where: { iduser: id },
     select: {
@@ -96,7 +106,12 @@ export const getUserById = async (id) => {
 };
 
 // Creates user with hashed password
-export const createUser = async (data, auditUserId = null, auditUserNome = '') => {
+/**
+ * Cria utilizador.
+ * @param {object} data
+ * @returns {Promise<any>} {Promise<object>}
+ */
+
   const { nome, email, telemovel, password, role, modalidades, encarregadoId } = data;
 
   const roles = Array.isArray(role) ? role : [role];
@@ -188,7 +203,12 @@ export const createUser = async (data, auditUserId = null, auditUserNome = '') =
   return user;
 };
 
-export const updateUser = async (id, data, auditUserId = null, auditUserNome = '') => {
+/**
+ * Atualiza utilizador.
+ * @param {string|number} id @param {object} data
+ * @returns {Promise<any>} {Promise<object>}
+ */
+
   const { nome, email, telemovel, password, role, estado, encarregadoId, modalidades } = data;
 
   const existingUser = await prisma.utilizador.findUnique({
@@ -301,7 +321,12 @@ const parseRoleFromDb = (roleValue) => {
 };
 
 // Soft-deletes user (keeps in DB for audit, just marks as inactive)
-export const deleteUser = async (id, auditUserId = null, auditUserNome = '') => {
+/**
+ * Elimina utilizador.
+ * @param {string|number} id
+ * @returns {Promise<any>} {Promise<void>}
+ */
+
   const existingUser = await prisma.utilizador.findUnique({
     where: { iduser: id }
   });

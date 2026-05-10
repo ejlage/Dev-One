@@ -3,7 +3,12 @@ import { createAuditLog } from "./audit.service.js";
 
 const prisma = new PrismaClient();
 
-export const getEncarregadoAulas = async (encarregadoUserId) => {
+/**
+ * Obtém aulas do encarregado.
+ * @param {number} encarregadoUserId
+ * @returns {Promise<any>} {Promise<object[]>}
+ */
+
   const aulas = await prisma.$queryRaw`
     SELECT
       pa.idpedidoaula,
@@ -153,7 +158,12 @@ export const getGruposAbertos = async () => {
   });
 };
 
-export const submeterPedidoAula = async (data, incarregadoUserId) => {
+/**
+ * Submete pedido de aula.
+ * @param {object} data @param {number} userId
+ * @returns {Promise<any>} {Promise<object>}
+ */
+
   const {
     data: dataAula,
     horainicio,
@@ -328,7 +338,12 @@ export const marcarAula = async (pedidoId, alunoId, encarregadoUserId) => {
   return result;
 };
 
-export const cancelarParticipacaoAula = async (pedidoId, encarregadoUserId) => {
+/**
+ * Cancela participação em aula.
+ * @param {string|number} pedidoId @param {number} userId
+ * @returns {Promise<any>} {Promise<object>}
+ */
+
   const pedido = await prisma.pedidodeaula.findUnique({
     where: { idpedidoaula: parseInt(pedidoId) },
     include: { estado: true }
@@ -383,7 +398,12 @@ export const cancelarParticipacaoAula = async (pedidoId, encarregadoUserId) => {
   return { success: true, message: "Participação cancelada com sucesso" };
 };
 
-export const inserirAlunoPedido = async (pedidoId, alunoId, encarregadoUserId) => {
+/**
+ * Insere aluno num pedido.
+ * @param {string|number} pedidoId @param {number} alunoId
+ * @returns {Promise<any>} {Promise<object>}
+ */
+
   const pedido = await prisma.pedidodeaula.findUnique({
     where: { idpedidoaula: parseInt(pedidoId) }
   });

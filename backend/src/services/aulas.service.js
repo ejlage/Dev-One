@@ -4,6 +4,10 @@ import { createAuditLog } from "./audit.service.js";
 
 const prisma = new PrismaClient();
 
+/**
+ * Lista todas as aulas.
+ * @returns {Promise<object[]>} Array de aulas com relações.
+ */
 export async function listarAulas() {
   return prisma.aula.findMany({
     include: {
@@ -28,6 +32,11 @@ export async function listarAulas() {
   });
 }
 
+/**
+ * Consulta uma aula pelo ID.
+ * @param {string|number} id - ID da aula
+ * @returns {Promise<object>} Aula com relações ou null
+ */
 export async function consultarAula(id) {
   return prisma.aula.findUnique({
     where: { idaula: parseInt(id) },
@@ -53,7 +62,17 @@ export async function consultarAula(id) {
   });
 }
 
-export async function obterAulaDoPedido(pedidoId) {
+/**
+ * Obtém aula associada a um pedido.
+ * @param {string|number} pedidoId - ID do pedido
+ * @returns {Promise<any>} {Promise<object|null>}
+ */
+
+  /**
+   * Obtém aula associada a um pedido.
+   * @param {string|number} pedidoId - ID do pedido
+   * @returns {Promise<object|null>} Aula ou null
+   */
   return prisma.aula.findFirst({
     where: { pedidodeaulaidpedidoaula: parseInt(pedidoId) },
     include: {
@@ -79,7 +98,17 @@ export async function obterAulaDoPedido(pedidoId) {
   });
 }
 
-export async function criarAula(data) {
+/**
+ * Cria uma nova aula.
+ * @param {object} data - Dados da aula
+ * @returns {Promise<any>} {Promise<object>}
+ */
+
+  /**
+   * Cria uma nova aula.
+   * @param {object} data - Dados da aula
+   * @returns {Promise<object>} Aula criada
+   */
   const { pedidodeaulaidpedidoaula, salaidsala } = data;
 
   const pedido = await prisma.pedidodeaula.findUnique({
@@ -141,7 +170,12 @@ export async function criarAula(data) {
   });
 }
 
-export async function updateAula(id, data) {
+/**
+ * Atualiza uma aula.
+ * @param {string|number} id @param {object} data
+ * @returns {Promise<any>} {Promise<object>}
+ */
+
   const { salaidsala, estadoaulaidestadoaula } = data;
 
   const existingAula = await prisma.aula.findUnique({
@@ -201,7 +235,12 @@ export async function updateAula(id, data) {
   });
 }
 
-export async function deleteAula(id) {
+/**
+ * Elimina uma aula.
+ * @param {string|number} id
+ * @returns {Promise<any>} {Promise<void>}
+ */
+
   const existingAula = await prisma.aula.findUnique({
     where: { idaula: parseInt(id) },
   });
@@ -219,7 +258,12 @@ export async function deleteAula(id) {
   });
 }
 
-export async function confirmAula(id) {
+/**
+ * Confirma uma aula.
+ * @param {string|number} id
+ * @returns {Promise<any>} {Promise<object>}
+ */
+
   const aula = await prisma.aula.findUnique({
     where: { idaula: parseInt(id) },
   });
@@ -249,7 +293,17 @@ export async function confirmAula(id) {
   });
 }
 
-export async function cancelarAula(id) {
+/**
+ * Cancela uma aula.
+ * @param {string|number} id
+ * @returns {Promise<any>} {Promise<object>}
+ */
+
+  /**
+   * Cancela uma aula.
+   * @param {string|number} id - ID da aula
+   * @returns {Promise<object>} Aula cancelada
+   */
   const aula = await prisma.aula.findUnique({
     where: { idaula: parseInt(id) },
     include: {
@@ -293,7 +347,19 @@ export async function cancelarAula(id) {
   return aulaAtualizada;
 }
 
-export async function remarcarAula(id, newData, newHora) {
+/**
+ * Remarca uma aula.
+ * @param {string|number} id @param {string} newData @param {string} newHora
+ * @returns {Promise<any>} {Promise<object>}
+ */
+
+  /**
+   * Remarca uma aula para nova data/hora.
+   * @param {string|number} id - ID da aula
+   * @param {string} newData - Nova data
+   * @param {string} newHora - Nova hora
+   * @returns {Promise<object>} Aula atualizada
+   */
   const agora = new Date();
   const novaDataInput = new Date(newData);
   const dataHojeStr = agora.toISOString().split('T')[0];
@@ -381,7 +447,12 @@ export async function remarcarAula(id, newData, newHora) {
   return updated;
 }
 
-export async function responderSugestaoProfessor(aulaId, aceitar, professorUserId) {
+/**
+ * Responde a sugestão do professor.
+ * @param {string|number} aulaId @param {boolean} aceitar
+ * @returns {Promise<any>} {Promise<object>}
+ */
+
   const pedido = await prisma.pedidodeaula.findUnique({
     where: { idpedidoaula: parseInt(aulaId) },
     include: {
@@ -448,7 +519,12 @@ export async function responderSugestaoProfessor(aulaId, aceitar, professorUserI
   return { reencaminhada: true, sugestaoestado: 'AGUARDA_EE' };
 }
 
-export async function responderSugestaoEE(aulaId, aceitar, encarregadoUserId) {
+/**
+ * Responde a sugestão do encarregado.
+ * @param {string|number} aulaId @param {boolean} aceitar
+ * @returns {Promise<any>} {Promise<object>}
+ */
+
   const pedido = await prisma.pedidodeaula.findUnique({
     where: { idpedidoaula: parseInt(aulaId) },
     include: {
@@ -562,7 +638,12 @@ export async function responderSugestaoEE(aulaId, aceitar, encarregadoUserId) {
   return updated;
 }
 
-export async function inserirAlunoAula(aulaId, alunoId) {
+/**
+ * Insere aluno numa aula.
+ * @param {string|number} aulaId @param {number} alunoId
+ * @returns {Promise<any>} {Promise<object>}
+ */
+
   const aula = await prisma.aula.findUnique({
     where: { idaula: parseInt(aulaId) },
     include: {
@@ -620,7 +701,12 @@ export async function getEstadoAulaByName(nome) {
   });
 }
 
-export async function pedirRemarcacao(pedidoId, professorUserId) {
+/**
+ * Professor pede remarcação.
+ * @param {string|number} pedidoId @param {number} professorUserId
+ * @returns {Promise<any>} {Promise<object>}
+ */
+
   const pedido = await prisma.pedidodeaula.findUnique({
     where: { idpedidoaula: parseInt(pedidoId) },
     include: {
@@ -654,7 +740,12 @@ export async function pedirRemarcacao(pedidoId, professorUserId) {
   return updated;
 }
 
-export async function sugerirNovaData(pedidoId, novaData) {
+/**
+ * Sugere nova data para aula.
+ * @param {string|number} pedidoId @param {string} novaData
+ * @returns {Promise<any>} {Promise<object>}
+ */
+
   const agora = new Date();
   const novaDataInput = new Date(novaData);
   const dataHojeStr = agora.toISOString().split('T')[0];
@@ -706,7 +797,12 @@ export async function sugerirNovaData(pedidoId, novaData) {
   return pedido;
 }
 
-export async function responderSugestaoDirecao(aulaId, aceitar, direcaoUserId, novaData) {
+/**
+ * Responde a sugestão da direção.
+ * @param {string|number} aulaId @param {boolean} aceitar
+ * @returns {Promise<any>} {Promise<object>}
+ */
+
   const pedido = await prisma.pedidodeaula.findUnique({
     where: { idpedidoaula: parseInt(aulaId) },
     include: {

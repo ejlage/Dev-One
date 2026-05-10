@@ -22,7 +22,12 @@ const transacaoInclude = {
   professor: { include: { utilizador: true } },
 };
 
-export const getAllTransacoes = async () => {
+/**
+ * Obtém todas as transações.
+ * 
+ * @returns {Promise<any>} {Promise<object[]>}
+ */
+
   const transacoes = await prisma.transacaofigurino.findMany({ include: transacaoInclude });
   
   return transacoes.map(t => {
@@ -65,7 +70,12 @@ export const getAllTransacoes = async () => {
   });
 };
 
-export const getTransacaoById = async (id) => {
+/**
+ * Obtém transação pelo ID.
+ * @param {string|number} id
+ * @returns {Promise<any>} {Promise<object|null>}
+ */
+
   return prisma.transacaofigurino.findUnique({
     where: { idtransacao: parseInt(id) },
     include: transacaoInclude,
@@ -79,7 +89,12 @@ export const getTransacoesByAnuncio = async (anuncioId) => {
   });
 };
 
-export const registarTransacao = async (data, userId = null, userNome = '') => {
+/**
+ * Regista transação.
+ * @param {object} data @param {number} userId
+ * @returns {Promise<any>} {Promise<object>}
+ */
+
   const {
     quantidade,
     datatransacao,
@@ -176,7 +191,12 @@ export const registarTransacao = async (data, userId = null, userNome = '') => {
   return transacao;
 };
 
-export const avaliarPedidoReserva = async (id, novoEstadoId, direcaoUserId, direcaoUserNome = '', motivorejeicao) => {
+/**
+ * Avalia pedido de reserva.
+ * @param {string|number} id @param {string} decisao @param {number} userId
+ * @returns {Promise<any>} {Promise<object>}
+ */
+
   const transacao = await prisma.transacaofigurino.update({
     where: { idtransacao: parseInt(id) },
     data: {
@@ -220,7 +240,12 @@ export const avaliarPedidoReserva = async (id, novoEstadoId, direcaoUserId, dire
   return transacao;
 };
 
-export const confirmarReserva = async (id, userId) => {
+/**
+ * Confirma reserva.
+ * @param {string|number} id @param {number} userId
+ * @returns {Promise<any>} {Promise<object>}
+ */
+
   const transacao = await prisma.transacaofigurino.findUnique({
     where: { idtransacao: parseInt(id) },
   });
@@ -268,7 +293,12 @@ export const confirmarReserva = async (id, userId) => {
   return updated;
 };
 
-export const cancelarReserva = async (id, userId, motivo) => {
+/**
+ * Cancela reserva.
+ * @param {string|number} id @param {number} userId
+ * @returns {Promise<any>} {Promise<object>}
+ */
+
   const transacao = await prisma.transacaofigurino.findUnique({
     where: { idtransacao: parseInt(id) },
     include: { anuncio: true },
@@ -385,7 +415,12 @@ export const getDisponibilidadeFigurino = async (anuncioId) => {
   };
 };
 
-export const getReservasByUser = async (userId, role) => {
+/**
+ * Obtém reservas do utilizador.
+ * @param {number} userId
+ * @returns {Promise<any>} {Promise<object[]>}
+ */
+
   const where =
     role === 'PROFESSOR'
       ? { professorutilizadoriduser: parseInt(userId) }

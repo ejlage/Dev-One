@@ -3,7 +3,12 @@ import { createNotificacao } from "./notificacoes.service.js";
 
 const prisma = new PrismaClient();
 
-export const consultarAula = async () => {
+/**
+ * Consulta uma aula pelo ID.
+ * @param {string|number} id - ID da aula
+ * @returns {Promise<any>} {Promise<object|null>}
+ */
+
   const aulas = await prisma.$queryRaw`
     SELECT
       pa.idpedidoaula,
@@ -188,7 +193,12 @@ export const getPendingAulas = async () => {
   });
 };
 
-export const avaliarPedido = async (id, decisao, salaId, motivo) => {
+/**
+ * Avalia pedido de aula.
+ * @param {string|number} id @param {string} decisao @param {number} userId
+ * @returns {Promise<any>} {Promise<object>}
+ */
+
   if (decisao === 'aprovar') {
     const estadoConfirmada = await prisma.$queryRaw`
       SELECT idestado FROM estado WHERE LOWER(tipoestado) = 'confirmado'
