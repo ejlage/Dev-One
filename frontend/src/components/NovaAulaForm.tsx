@@ -1,6 +1,6 @@
 import { useState, FormEvent, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { mockUsers, mockPedidosAulas, mockTurmas } from '../data/mockData';
+import api from '../services/api';
 import { PedidoAula } from '../types';
 import { AlertCircle, Info, Lock, Users } from 'lucide-react';
 import { toast } from 'sonner';
@@ -34,6 +34,20 @@ export function NovaAulaForm({ onSuccess, onCancel, aulasExistentes, prefill }: 
     turmaId: '',
   });
   const [errors, setErrors] = useState<string[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
+  const [turmas, setTurmas] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const [usersRes, turmasRes] = await Promise.all([
+        api.getUsers(),
+        api.getTurmas()
+      ]);
+      if (usersRes.success) setUsers(usersRes.data || []);
+      if (turmasRes.success) setTurmas(turmasRes.data || []);
+    };
+    fetchData();
+  }, []);
 
   useEffect(() => {
     if (prefill) {
@@ -129,9 +143,9 @@ export function NovaAulaForm({ onSuccess, onCancel, aulasExistentes, prefill }: 
       return;
     }
 
-    const aluno = mockUsers.find(u => u.id === formData.alunoId);
-    const professor = mockUsers.find(u => u.id === formData.professorId);
-    const turma = formData.turmaId ? mockTurmas.find(t => t.id === formData.turmaId) : undefined;
+    const aluno = users.find(u => u.id === formData.alunoId);
+    const professor = users.find(u => u.id === formData.professorId);
+    const turma = formData.turmaId ? turmas.find(t => t.id === formData.turmaId) : undefined;
 
     if (!aluno || !professor) {
       toast.error('Erro ao buscar dados');
@@ -178,14 +192,14 @@ export function NovaAulaForm({ onSuccess, onCancel, aulasExistentes, prefill }: 
   };
 
   const alunosDisponiveis = user.role === 'ENCARREGADO'
-    ? mockUsers.filter(u => u.encarregadoId === user.id)
-    : mockUsers.filter(u => u.role === 'ALUNO');
+    ? users.filter(u => u.encarregadoId === user.id)
+    : users.filter(u => u.role === 'ALUNO');
 
-  const professores = mockUsers.filter(u => u.role === 'PROFESSOR');
+  const professores = users.filter(u => u.role === 'PROFESSOR');
 
   // Turmas do professor selecionado (para aula privada)
   const turmasDoProf = formData.professorId
-    ? mockTurmas.filter(t => t.professorId === formData.professorId && t.status !== 'ARQUIVADA')
+    ? turmas.filter(t => t.professorId === formData.professorId && t.status !== 'ARQUIVADA')
     : [];
 
   if (user.role === 'ENCARREGADO' && alunosDisponiveis.length === 1 && !formData.alunoId) {

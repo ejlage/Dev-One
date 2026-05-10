@@ -19,19 +19,18 @@ export function Utilizadores() {
   const [modalidadesProfessor, setModalidadesProfessor] = useState<string[]>(['']);
   const MAX_MODALIDADES = 4;
   
-  // Lista de modalidades disponíveis
   const modalidadesDisponiveis = [
-    'Ballet Clássico',
-    'Jazz',
-    'Moderno',
-    'Contemporâneo',
-    'Hip Hop',
-    ' street dance',
-    'Irish Dance',
-    'Dance Fitness',
-    'K-Pop',
-    'Zumba',
-    'Fit Dance'
+    { id: 21, nome: 'Ballet Clássico' },
+    { id: 22, nome: 'Jazz' },
+    { id: 23, nome: 'Moderno' },
+    { id: 24, nome: 'Contemporâneo' },
+    { id: 25, nome: 'Hip Hop' },
+    { id: 26, nome: 'Street Dance' },
+    { id: 27, nome: 'Irish Dance' },
+    { id: 28, nome: 'Dance Fitness' },
+    { id: 29, nome: 'K-Pop' },
+    { id: 30, nome: 'Zumba' },
+    { id: 31, nome: 'Fit Dance' }
   ];
   
   const handleModalidadeChange = (index: number, value: string) => {
@@ -60,6 +59,7 @@ export function Utilizadores() {
   const [editingUser, setEditingUser] = useState<any>(null);
   const [editFormData, setEditFormData] = useState({ nome: '', email: '', telemovel: '', role: '', encarregadoId: '' });
   const [editRole, setEditRole] = useState('');
+  const [editModalidades, setEditModalidades] = useState<string[]>(['']);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -278,7 +278,7 @@ export function Utilizadores() {
     }
   };
 
-  const handleEditClick = (user: any) => {
+  const handleEditClick = async (user: any) => {
     setEditingUser(user);
     setEditRole(user.role);
     setEditFormData({
@@ -288,6 +288,29 @@ export function Utilizadores() {
       role: user.role,
       encarregadoId: user.encarregadoId || ''
     });
+
+    if (user.role === 'PROFESSOR') {
+      try {
+        const userId = Number(user.id || user.iduser);
+        console.log('Fetching modalidades for user:', userId, 'role:', user.role);
+        const modRes = await api.getUserModalidades(userId);
+        console.log('Modalidades response:', modRes);
+        if (modRes.success && modRes.data && modRes.data.length > 0) {
+          const modIds = modRes.data.map((m: any) => m.modalidadeidmodalidade.toString());
+          console.log('Setting editModalidades:', modIds);
+          setEditModalidades(modIds);
+        } else {
+          console.log('No modalidades found, setting empty');
+          setEditModalidades(['']);
+        }
+      } catch (err) {
+        console.error('Error fetching modalidades:', err);
+        setEditModalidades(['']);
+      }
+    } else {
+      console.log('User role is not PROFESSOR:', user.role);
+      setEditModalidades(['']);
+    }
   };
 
   const handleEditSubmit = async (e: React.FormEvent) => {
@@ -305,6 +328,13 @@ export function Utilizadores() {
 
       if (editRole === 'ALUNO') {
         updateData.encarregadoId = editFormData.encarregadoId || null;
+      }
+
+      if (editRole === 'PROFESSOR') {
+        const modalidades = editModalidades.filter(m => m.trim() !== '');
+        if (modalidades.length > 0) {
+          updateData.modalidades = modalidades;
+        }
       }
 
       console.log('Updating user:', editingUser.id, updateData);
@@ -549,29 +579,37 @@ export function Utilizadores() {
                 {selectedRole === 'PROFESSOR' && (
                   <div className="mt-4 p-4 bg-[#e2f0ed] rounded-lg border border-[#0d6b5e]/20">
                     <label className="block text-sm mb-3 text-[#0d6b5e] font-semibold">Modalidade(s) do Professor</label>
-                    {modalidadesProfessor.map((modalidade, index) => (
-                      <div key={index} className="flex gap-2 mb-2">
-                        <select
-                          value={modalidade}
-                          onChange={(e) => handleModalidadeChange(index, e.target.value)}
-                          className="flex-1 px-4 py-2 border border-[#0d6b5e]/20 rounded-lg bg-white focus:outline-none focus:border-[#0d6b5e] text-[#0a1a17]"
-                        >
-                          <option value="">Selecione modalidade {index + 1}...</option>
-                          {modalidadesDisponiveis.map(m => (
-                            <option key={m} value={m}>{m}</option>
-                          ))}
-                        </select>
-                        {modalidadesProfessor.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => removerModalidade(index)}
-                            className="px-3 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"
+                    {modalidadesProfessor.map((modalidade, index) => {
+                      const jaSelecionadas: number[] = [];
+                      modalidadesProfessor.forEach((m, idx) => {
+                        if (idx !== index && m) jaSelecionadas.push(Number(m));
+                      });
+                      return (
+                        <div key={index} className="flex gap-2 mb-2">
+                          <select
+                            value={modalidade}
+                            onChange={(e) => handleModalidadeChange(index, e.target.value)}
+                            className="flex-1 px-4 py-2 border border-[#0d6b5e]/20 rounded-lg bg-white focus:outline-none focus:border-[#0d6b5e] text-[#0a1a17]"
                           >
-                            ×
-                          </button>
-                        )}
-                      </div>
-                    ))}
+                            <option value="">Selecione modalidade {index + 1}...</option>
+                            {modalidadesDisponiveis
+                              .filter(m => !jaSelecionadas.includes(m.id))
+                              .map(m => (
+                                <option key={m.id} value={m.id}>{m.nome}</option>
+                              ))}
+                          </select>
+                          {modalidadesProfessor.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removerModalidade(index)}
+                              className="px-3 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"
+                            >
+                              ×
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
                     {getModalidadesSelecionadas().length < MAX_MODALIDADES && (
                       <button
                         type="button"
@@ -761,10 +799,10 @@ export function Utilizadores() {
                   <option value="DIRECAO">Direção</option>
                 </select>
               </div>
-              {editRole === 'ALUNO' && (
+{editRole === 'ALUNO' && (
                 <div>
                   <label className="block text-sm mb-2 text-[#4d7068]">Encarregado de Educação</label>
-<select 
+                  <select 
                     value={editFormData.encarregadoId}
                     onChange={(e) => setEditFormData({...editFormData, encarregadoId: e.target.value})}
                     className="w-full px-4 py-2 border border-[#0d6b5e]/20 rounded-lg bg-[#f4f9f8] focus:outline-none focus:border-[#0d6b5e] text-[#0a1a17]"
@@ -774,6 +812,59 @@ export function Utilizadores() {
                       <option key={enc.id} value={enc.id}>{enc.nome} ({enc.email})</option>
                     ))}
                   </select>
+                </div>
+              )}
+
+              {editRole === 'PROFESSOR' && (
+                <div>
+                  <label className="block text-sm mb-2 text-[#4d7068]">Modalidades</label>
+                  {editModalidades.map((modalidade, index) => {
+                    const jaSelecionadas: number[] = [];
+                    editModalidades.forEach((m, idx) => {
+                      if (idx !== index && m) jaSelecionadas.push(Number(m));
+                    });
+                    return (
+                      <div key={index} className="flex gap-2 mb-2">
+                        <select
+                          value={modalidade}
+                          onChange={(e) => {
+                            const novas = [...editModalidades];
+                            novas[index] = e.target.value;
+                            setEditModalidades(novas);
+                          }}
+                          className="flex-1 px-4 py-2 border border-[#0d6b5e]/20 rounded-lg bg-white focus:outline-none focus:border-[#0d6b5e] text-[#0a1a17]"
+                        >
+                          <option value="">Selecione modalidade {index + 1}...</option>
+                          {modalidadesDisponiveis
+                            .filter(m => !jaSelecionadas.includes(m.id))
+                            .map(m => (
+                              <option key={m.id} value={m.id}>{m.nome}</option>
+                            ))}
+                        </select>
+                        {editModalidades.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const novas = editModalidades.filter((_, i) => i !== index);
+                              setEditModalidades(novas);
+                            }}
+                            className="px-3 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {editModalidades.filter(m => m).length < MAX_MODALIDADES && (
+                    <button
+                      type="button"
+                      onClick={() => setEditModalidades([...editModalidades, ''])}
+                      className="mt-2 text-sm text-[#0d6b5e] hover:text-[#065147]"
+                    >
+                      + Adicionar modalidade
+                    </button>
+                  )}
                 </div>
               )}
               <div className="flex gap-4 pt-2">

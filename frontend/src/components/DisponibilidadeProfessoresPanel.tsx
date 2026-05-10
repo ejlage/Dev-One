@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { mockUsers, mockDisponibilidades } from '../data/mockData';
+import { useState, useEffect } from 'react';
+import api from '../services/api';
 import { SlotDisponibilidade, PedidoAula } from '../types';
 import { Clock, MapPin, Music, CalendarDays, ChevronRight, CheckCircle2, AlertCircle } from 'lucide-react';
 import { format, addDays, startOfDay } from 'date-fns';
@@ -41,7 +41,23 @@ const PROFESSOR_AVATAR_COLORS: Record<string, string> = {
 };
 
 export function DisponibilidadeProfessoresPanel({ aulasExistentes, onMarcarSlot }: DisponibilidadeProfessoresPanelProps) {
-  const professores = mockUsers.filter(u => u.role === 'PROFESSOR');
+  const [users, setUsers] = useState<any[]>([]);
+  const [professorSlots, setProfessorSlots] = useState<any[]>([]);
+  
+  useEffect(() => {
+    const fetchData = async () => {
+      const [usersRes] = await Promise.all([
+        api.getUsers()
+      ]);
+      if (usersRes.success) setUsers(usersRes.data || []);
+      
+      const slotsRes = await api.getProfessorDisponibilidades();
+      if (slotsRes.success) setProfessorSlots(slotsRes.data || []);
+    };
+    fetchData();
+  }, []);
+
+  const professores = users.filter(u => u.role === 'PROFESSOR');
   const [professorSelecionado, setProfessorSelecionado] = useState<string>('TODOS');
   const [slotExpandido, setSlotExpandido] = useState<string | null>(null);
 
@@ -91,7 +107,7 @@ export function DisponibilidadeProfessoresPanel({ aulasExistentes, onMarcarSlot 
 
   // Agrupar slots por dia da semana para um professor
   const getSlotsPorDia = (professorId: string) => {
-    const slots = mockDisponibilidades.filter(d => d.professorId === professorId);
+    const slots = professorSlots.filter(d => d.professorId === professorId);
     const porDia: Record<number, SlotDisponibilidade[]> = {};
     slots.forEach(slot => {
       if (!porDia[slot.diaSemana]) porDia[slot.diaSemana] = [];
@@ -102,7 +118,7 @@ export function DisponibilidadeProfessoresPanel({ aulasExistentes, onMarcarSlot 
 
   // Obter modalidades únicas de um professor
   const getModalidadesProfessor = (professorId: string) => {
-    const slots = mockDisponibilidades.filter(d => d.professorId === professorId);
+    const slots = professorSlots.filter(d => d.professorId === professorId);
     return [...new Set(slots.map(s => s.modalidade))];
   };
 

@@ -1,5 +1,4 @@
 import { verifyToken } from "../middleware/auth.middleware.js";
-import aulasRoutes from "./aulas.routes.js";
 
 export default async function (fastify) {
 
@@ -15,7 +14,5 @@ export default async function (fastify) {
     };
   });
 
-  //t11-t16
-  fastify.register(aulasRoutes);
 }
 

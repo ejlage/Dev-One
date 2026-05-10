@@ -362,6 +362,54 @@ class ApiService {
       method: 'DELETE',
     });
   }
+
+  // Professor Disponibilidades
+  async getProfessorDisponibilidades() {
+    return this.request<{ success: boolean; data: any[] }>('/api/professor/disponibilidades');
+  }
+
+  async getProfessorModalidades() {
+    return this.request<{ success: boolean; data: any[] }>('/api/professor/modalidades');
+  }
+
+  async getProfessorAulas() {
+    return this.request<{ success: boolean; data: any[] }>('/api/professor/aulas');
+  }
+
+  async createProfessorDisponibilidade(data: {
+    modalidadesprofessoridmodalidadeprofessor: number;
+    diadasemana: number;
+    horainicio: string;
+    horafim: string;
+  }) {
+    return this.request<{ success: boolean; data: any }>('/api/professor/disponibilidades', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateProfessorDisponibilidade(id: number, data: {
+    modalidadesprofessoridmodalidadeprofessor?: number;
+    diadasemana?: number;
+    horainicio?: string;
+    horafim?: string;
+    ativo?: boolean;
+  }) {
+    return this.request<{ success: boolean; data: any }>(`/api/professor/disponibilidades/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteProfessorDisponibilidade(id: number) {
+    return this.request<{ success: boolean }>(`/api/professor/disponibilidades/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getUserModalidades(userId: number | string) {
+    return this.request<{ success: boolean; data: any[] }>(`/api/users/${Number(userId)}/modalidades`);
+  }
 }
 
 export const api = new ApiService();

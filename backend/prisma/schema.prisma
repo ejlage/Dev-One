@@ -8,11 +8,13 @@ datasource db {
 }
 
 model aluno {
-  idaluno          Int          @id @default(autoincrement())
-  utilizadoriduser Int
-  utilizador       utilizador   @relation(fields: [utilizadoriduser], references: [iduser], onDelete: NoAction, onUpdate: NoAction, map: "fkaluno173503")
-  alunoaula        alunoaula[]
-  alunogrupo       alunogrupo[]
+  idaluno             Int                  @id @default(autoincrement())
+  utilizadoriduser    Int
+  encarregadoiduser   Int?
+  utilizador        utilizador          @relation(fields: [utilizadoriduser], references: [iduser], onDelete: NoAction, onUpdate: NoAction, map: "fkaluno173503")
+  encarregadoeducacao encarregadoeducacao? @relation(fields: [encarregadoiduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction, map: "fkalunoencarregado")
+  alunoaula          alunoaula[]
+  alunogrupo         alunogrupo[]
 }
 
 model alunoaula {
@@ -44,7 +46,7 @@ model anuncio {
   encarregadoeducacaoutilizadoriduser Int
   professorutilizadoriduser           Int
   figurino                            figurino            @relation(fields: [figurinoidfigurino], references: [idfigurino], onDelete: NoAction, onUpdate: NoAction, map: "fkanuncio206012")
-  encarregadoeducacao                 encarregadoeducacao? @relation(fields: [encarregadoeducacaoutilizadoriduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction, map: "fkanuncio342590")
+  encarregadoeducacao                 encarregadoeducacao @relation(fields: [encarregadoeducacaoutilizadoriduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction, map: "fkanuncio342590")
   estado                              estado              @relation(fields: [estadoidestado], references: [idestado], onDelete: NoAction, onUpdate: NoAction, map: "fkanuncio57402")
   direcao                             direcao             @relation(fields: [direcaoutilizadoriduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction, map: "fkanuncio631724")
   professor                           professor           @relation(fields: [professorutilizadoriduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction, map: "fkanuncio953604")
@@ -54,7 +56,7 @@ model anuncio {
 model aula {
   idaula                   Int          @id @default(autoincrement())
   pedidodeaulaidpedidoaula Int
-  salaidsala               Int 
+  salaidsala               Int
   estadoaulaidestadoaula   Int
   alunoaula                alunoaula[]
   pedidodeaula             pedidodeaula @relation(fields: [pedidodeaulaidpedidoaula], references: [idpedidoaula], onDelete: NoAction, onUpdate: NoAction, map: "fkaula258513")
@@ -91,8 +93,11 @@ model disponibilidade {
   pedidodeaula                             pedidodeaula[]
 }
 
+
+
 model encarregadoeducacao {
   utilizadoriduser Int            @id
+  aluno            aluno[]
   anuncio          anuncio[]
   utilizador       utilizador     @relation(fields: [utilizadoriduser], references: [iduser], onDelete: NoAction, onUpdate: NoAction, map: "fkencarregad867539")
   figurino         figurino[]
@@ -133,19 +138,19 @@ model figurino {
   generoidgenero                      Int
   tamanhoidtamanho                    Int
   coridcor                            Int
-  estadousoidestado                   Int?
-  encarregadoeducacaoutilizadoriduser Int?
-  direcaoutilizadoriduser             Int?
-  professorutilizadoriduser           Int?
+  estadousoidestado                   Int
+  encarregadoeducacaoutilizadoriduser Int
+  direcaoutilizadoriduser             Int
+  professorutilizadoriduser           Int
   itemfigurinoiditem                  Int
   anuncio                             anuncio[]
-  estadouso                           estadouso?           @relation(fields: [estadousoidestado], references: [idestado], onDelete: NoAction, onUpdate: NoAction, map: "fkfigurino733126")
+  estadouso                           estadouso           @relation(fields: [estadousoidestado], references: [idestado], onDelete: NoAction, onUpdate: NoAction, map: "fkfigurino733126")
   tamanho                             tamanho             @relation(fields: [tamanhoidtamanho], references: [idtamanho], onDelete: NoAction, onUpdate: NoAction, map: "fkfigurino742941")
-  professor                           professor?           @relation(fields: [professorutilizadoriduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction, map: "fkfigurino753753")
+  professor                           professor           @relation(fields: [professorutilizadoriduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction, map: "fkfigurino753753")
   cor                                 cor                 @relation(fields: [coridcor], references: [idcor], onDelete: NoAction, onUpdate: NoAction, map: "fkfigurino779940")
   genero                              genero              @relation(fields: [generoidgenero], references: [idgenero], onDelete: NoAction, onUpdate: NoAction, map: "fkfigurino823907")
-  direcao                             direcao?             @relation(fields: [direcaoutilizadoriduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction, map: "fkfigurino831575")
-  encarregadoeducacao                 encarregadoeducacao? @relation(fields: [encarregadoeducacaoutilizadoriduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction, map: "fkfigurino857260")
+  direcao                             direcao             @relation(fields: [direcaoutilizadoriduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction, map: "fkfigurino831575")
+  encarregadoeducacao                 encarregadoeducacao @relation(fields: [encarregadoeducacaoutilizadoriduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction, map: "fkfigurino857260")
   modelofigurino                      modelofigurino      @relation(fields: [modelofigurinoidmodelo], references: [idmodelo], onDelete: NoAction, onUpdate: NoAction, map: "fkfigurino865766")
   itemfigurino                        itemfigurino        @relation(fields: [itemfigurinoiditem], references: [iditem], onDelete: NoAction, onUpdate: NoAction, map: "fkfigurino940616")
 }
@@ -208,6 +213,8 @@ model pedidodeaula {
   estadoidestado                      Int
   salaidsala                          Int
   encarregadoeducacaoutilizadoriduser Int
+  novadata                            DateTime?           @db.Date
+  novaDataLimite                      DateTime?
   aula                                aula[]
   encarregadoeducacao                 encarregadoeducacao @relation(fields: [encarregadoeducacaoutilizadoriduser], references: [utilizadoriduser], onDelete: NoAction, onUpdate: NoAction, map: "fkpedidodeau208002")
   disponibilidade                     disponibilidade     @relation(fields: [disponibilidadeiddisponibilidade], references: [iddisponibilidade], onDelete: NoAction, onUpdate: NoAction, map: "fkpedidodeau349532")
@@ -221,7 +228,7 @@ model professor {
   anuncio             anuncio[]
   disponibilidade     disponibilidade[]
   figurino            figurino[]
-  modalidadeprofessor modalidadeprofessor[]
+  modalidadeeprofessor modalidadeprofessor[]
   utilizador          utilizador            @relation(fields: [utilizadoriduser], references: [iduser], onDelete: NoAction, onUpdate: NoAction, map: "fkprofessor908326")
 }
 
@@ -279,7 +286,7 @@ model utilizador {
   iduser              Int                  @id @default(autoincrement())
   nome                String               @db.VarChar(255)
   email               String               @unique @db.VarChar(255)
-  telemovel           String               @db.VarChar(20)
+  telemovel           String?              @db.VarChar(20)
   password            String               @db.VarChar(255)
   estado              Boolean              @default(true)
   role                String               @default("utilizador")
@@ -287,5 +294,16 @@ model utilizador {
   direcao             direcao?
   encarregadoeducacao encarregadoeducacao?
   professor           professor?
+  notificacao         notificacao[]
+}
 
+model notificacao {
+  idnotificacao       Int         @id @default(autoincrement())
+  mensagem            String      @db.VarChar(500)
+  tipo                String      @db.VarChar(50)
+  lida                Boolean     @default(false)
+  dataleitura         DateTime?
+  datanotificacao     DateTime    @default(now())
+  utilizadoriduser    Int
+  utilizador          utilizador  @relation(fields: [utilizadoriduser], references: [iduser])
 }

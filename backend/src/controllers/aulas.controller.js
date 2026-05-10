@@ -1,150 +1,127 @@
-// Controller para aulas T11-T16
+import * as aulasService from "../services/aulas.service.js";
 
-
-import {
-  getSalasDisponiveis,
-  associarSalaAula,
-  getAulas,
-  confirmarConclusaoAula,
-  comunicarAusencia,
-  substituirProfessor,
-} from "../services/aulas.service.js";
-
-import { remarcarAula } from "../services/Remarcaraula.service.js";
-
-
-//T11
-// GET /api/aulas/salas-disponiveis?data=&horainicio=&duracaoaula=
-export async function getSalasDisponiveisController(request, reply) {
-  const { data, horainicio, duracaoaula } = request.query;
-
-  if (!data || !horainicio || !duracaoaula)
-    return reply.code(400).send({ erro: "Parâmetros obrigatórios: data, horainicio, duracaoaula" });
-
-  const duracaoaulaMin = parseInt(duracaoaula, 10);
-  if (isNaN(duracaoaulaMin) || duracaoaulaMin < 30 || duracaoaulaMin > 120)
-    return reply.code(400).send({ erro: "duracaoaula inválida. Deve estar entre 30 e 120 minutos (RF05)." });
-
+export const getAllAulas = async (req, reply) => {
   try {
-    const salas = await getSalasDisponiveis(data, horainicio, duracaoaulaMin);
-    return reply.send({ salas });
+    const aulas = await aulasService.getAllAulas();
+    return reply.send({ success: true, data: aulas });
   } catch (err) {
-    return reply.code(err.statusCode ?? 500).send({ erro: err.message });
+    return reply.status(500).send({ success: false, error: err.message });
   }
-}
+};
 
-
-//T11
-//PATCH /api/aulas/:idaula/associar-sala   body: { idsala }
-export async function associarSalaAulaController(request, reply) {
-  const idaula = Number(request.params.idaula);
-  const { idsala } = request.body ?? {};
-
-  if (!idsala)
-    return reply.code(400).send({ erro: "idsala é obrigatório." });
-
+export const getAulaById = async (req, reply) => {
   try {
-    const aula = await associarSalaAula(idaula, Number(idsala));
-    return reply.send({ mensagem: "Sala associada com sucesso.", aula });
+    const { id } = req.params;
+    const aula = await aulasService.getAulaById(id);
+
+    if (!aula) {
+      return reply.status(404).send({ success: false, error: "Aula não encontrada" });
+    }
+
+    return reply.send({ success: true, data: aula });
   } catch (err) {
-    return reply.code(err.statusCode ?? 500).send({ erro: err.message });
+    return reply.status(500).send({ success: false, error: err.message });
   }
-}
+};
 
-
-//T12
-//GET /api/aulas
-export async function getAulasController(request, reply) {
+export const createAula = async (req, reply) => {
   try {
-    const aulas = await getAulas(request.query);
-    return reply.send({ aulas, total: aulas.length });
+    const aula = await aulasService.createAula(req.body);
+    return reply.status(201).send({ success: true, data: aula });
   } catch (err) {
-    return reply.code(err.statusCode ?? 500).send({ erro: err.message });
+    return reply.status(400).send({ success: false, error: err.message });
   }
-}
+};
 
-
-//T13
-//PATCH /api/aulas/:idaula/concluir
-export async function confirmarConclusaoController(request, reply) {
-  const idaula                    = Number(request.params.idaula);
-  const professorutilizadoriduser = request.user?.iduser;
-
-  if (!professorutilizadoriduser)
-    return reply.code(401).send({ erro: "Não autenticado." });
-
+export const updateAula = async (req, reply) => {
   try {
-    const aula = await confirmarConclusaoAula(idaula, professorutilizadoriduser);
-    return reply.send({ mensagem: "Aula marcada como REALIZADA.", aula });
+    const { id } = req.params;
+    const aula = await aulasService.updateAula(id, req.body);
+
+    if (!aula) {
+      return reply.status(404).send({ success: false, error: "Aula não encontrada" });
+    }
+
+    return reply.send({ success: true, data: aula });
   } catch (err) {
-    return reply.code(err.statusCode ?? 500).send({ erro: err.message });
+    return reply.status(400).send({ success: false, error: err.message });
   }
-}
+};
 
-
-//T14
-//POST /api/aulas/:idaula/ausencia   body: { }
-export async function comunicarAusenciaController(request, reply) {
-  const idaula                    = Number(request.params.idaula);
-  const professorutilizadoriduser = request.user?.iduser;
-  const { motivo }                = request.body ?? {};
-
-  if (!professorutilizadoriduser)
-    return reply.code(401).send({ erro: "Não autenticado." });
-
-  if (!motivo?.trim())
-    return reply.code(400).send({ erro: "motivo é obrigatório." });
-
+export const deleteAula = async (req, reply) => {
   try {
-    const resultado = await comunicarAusencia(idaula, professorutilizadoriduser, motivo.trim());
-    return reply.send({ mensagem: "Ausência registada. Encarregado notificado.", ...resultado });
+    const { id } = req.params;
+    await aulasService.deleteAula(id);
+    return reply.send({ success: true, data: { message: "Aula eliminada" } });
   } catch (err) {
-    return reply.code(err.statusCode ?? 500).send({ erro: err.message });
+    return reply.status(400).send({ success: false, error: err.message });
   }
-}
+};
 
-
-//T15
-//PATCH /api/aulas/:idaula/substituir-professor
-//body: { novoProfessorutilizadoriduser }
-export async function substituirProfessorController(request, reply) {
-  const idaula                          = Number(request.params.idaula);
-  const direcaoutilizadoriduser         = request.user?.iduser;
-  const { novoProfessorutilizadoriduser } = request.body ?? {};
-
-  if (!direcaoutilizadoriduser)
-    return reply.code(401).send({ erro: "Não autenticado." });
-
-  if (!novoProfessorutilizadoriduser)
-    return reply.code(400).send({ erro: "novoProfessorutilizadoriduser é obrigatório." });
-
+export const confirmAula = async (req, reply) => {
   try {
-    const aula = await substituirProfessor(
-      idaula, Number(novoProfessorutilizadoriduser), direcaoutilizadoriduser
-    );
-    return reply.send({ mensagem: "Professor substituído com sucesso.", aula });
+    const { id } = req.params;
+    const aula = await aulasService.confirmAula(id);
+    return reply.send({ success: true, data: aula });
   } catch (err) {
-    return reply.code(err.statusCode ?? 500).send({ erro: err.message });
+    return reply.status(400).send({ success: false, error: err.message });
   }
-}
+};
 
-
-//T16
-//PATCH /api/aulas/:idaula/remarcar
-//body: { data, horainicio, salaidsala (opcional), motivo }
-export async function remarcarAulaController(request, reply) {
-  const idaula                           = Number(request.params.idaula);
-  const { data, horainicio, salaidsala, motivo } = request.body ?? {};
-
-  if (!data || !horainicio || !motivo)
-    return reply.code(400).send({ erro: "Campos obrigatórios: data, horainicio, motivo" });
-
+export const cancelAula = async (req, reply) => {
   try {
-    const resultado = await remarcarAula(
-      idaula, data, horainicio, salaidsala ?? null, motivo.trim()
-    );
-    return reply.send({ mensagem: "Aula remarcada. Encarregado notificado.", ...resultado });
+    const { id } = req.params;
+    const aula = await aulasService.cancelAula(id);
+    return reply.send({ success: true, data: aula });
   } catch (err) {
-    return reply.code(err.statusCode ?? 500).send({ erro: err.message });
+    return reply.status(400).send({ success: false, error: err.message });
   }
-}
+};
+
+export const remarcarAula = async (req, reply) => {
+  try {
+    const { id } = req.params;
+    const { data, hora } = req.body;
+    const aula = await aulasService.remarcarAula(id, data, hora);
+    return reply.send({ success: true, data: aula });
+  } catch (err) {
+    return reply.status(400).send({ success: false, error: err.message });
+  }
+};
+
+export const joinAula = async (req, reply) => {
+  try {
+    const { id } = req.params;
+    const { alunoId } = req.body;
+    const result = await aulasService.joinAula(id, alunoId);
+    return reply.status(201).send({ success: true, data: result });
+  } catch (err) {
+    return reply.status(400).send({ success: false, error: err.message });
+  }
+};
+
+export const sugerirNovaData = async (req, reply) => {
+  try {
+    const { id } = req.params;
+    const { novaData } = req.body;
+    
+    if (!novaData) {
+      return reply.status(400).send({ success: false, error: 'novaData é obrigatório' });
+    }
+    
+    const pedido = await aulasService.sugerirNovaData(id, novaData);
+    
+    if (pedido && pedido.encarregadoeducacao) {
+      const { createNotificacao } = await import('../services/notificacoes.service.js');
+      await createNotificacao(
+        pedido.encarregadoeducacao.utilizadoriduser,
+        `O professor sugeriu uma nova data para a aula: ${new Date(novaData).toLocaleDateString('pt-PT')}`,
+        'SUGESTAO_NOVA_DATA'
+      );
+    }
+    
+    return reply.send({ success: true, data: pedido });
+  } catch (err) {
+    return reply.status(400).send({ success: false, error: err.message });
+  }
+};

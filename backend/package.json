@@ -1,23 +1,25 @@
 {
   "name": "entartes-backend",
   "version": "1.0.0",
+  "type": "module",
   "description": "API do sistema Ent'Artes",
   "main": "src/server.js",
   "scripts": {
     "dev": "node src/server.js",
-    "test": "vitest"
-  },
-  "prisma": {
-    "seed": "node prisma/seedAndre.js"
+    "start": "../scripts/start-services.sh",
+    "stop": "../scripts/stop-services.sh",
+    "test": "vitest",
+    "db:migrate": "prisma migrate dev",
+    "db:push": "prisma db push",
+    "seed": "node seed.js"
   },
   "dependencies": {
     "@fastify/cors": "^8.5.0",
     "@prisma/client": "^5.22.0",
-    "bcrypt": "^5.1.0",
+    "bcrypt": "^5.1.1",
     "dotenv": "^16.0.0",
-    "express": "^5.2.1",
     "fastify": "^4.0.0",
-    "jsonwebtoken": "^9.0.0"
+    "jsonwebtoken": "^9.0.3"
   },
   "devDependencies": {
     "prisma": "^5.22.0",
@@ -29,10 +31,5 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
-  "type": "module"
-}
-  "prisma": {
-    "seed": "node prisma/seed.js"
-  }
+  "license": "ISC"
 }

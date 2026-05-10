@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Link } from 'react-router';
-import { mockEstudios, mockUsers } from '../data/mockData';
 import { PedidoAula, AulaStatus } from '../types';
 import api from '../services/api';
 import {
   Calendar, Clock, MapPin, User, CheckCircle, XCircle,
-  Plus, Filter, ArrowLeft, Users, UserPlus, ChevronDown, Music2, Bell
+  Plus, Filter, ArrowLeft, Users, UserPlus, ChevronDown, Music2, Bell,
+  CalendarOff
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { NovaAulaForm } from '../components/NovaAulaForm';
@@ -34,13 +34,15 @@ const getModalidadeStyle = (modalidade: string) =>
 export function Aulas() {
   const { user } = useAuth();
   const [aulas, setAulas] = useState<PedidoAula[]>([]);
+  const [estudios, setEstudios] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filtroStatus, setFiltroStatus] = useState<AulaStatus | 'TODAS' | 'ATIVAS'>('ATIVAS');
   const [filtroProfessor, setFiltroProfessor] = useState<string>('TODOS');
   const [filtroEstudio, setFiltroEstudio] = useState<string>('TODOS');
   const [filtroModalidade, setFiltroModalidade] = useState<string>('TODAS');
   const [showNovoForm, setShowNovoForm] = useState(false);
-  const [activeTab, setActiveTab] = useState<'marcar' | 'agenda'>('marcar');
+  const [activeTab, setActiveTab] = useState<'marcar' | 'agenda' | 'historico'>('marcar');
   const [agendaSubTab, setAgendaSubTab] = useState<'minhas' | 'abertas'>('minhas');
   const [prefillForm, setPrefillForm] = useState<{
     professorId?: string; estudioId?: string; data?: string;
@@ -49,21 +51,27 @@ export function Aulas() {
   const [joinAulaId, setJoinAulaId] = useState<string | null>(null);
   const [joinAlunoSelecionado, setJoinAlunoSelecionado] = useState<string>('');
   const [direcaoCancelarModal, setDirecaoCancelarModal] = useState<string | null>(null);
+  const [sugerirRemarcacaoModal, setSugerirRemarcacaoModal] = useState<string | null>(null);
+  const [novaDataRemarcacao, setNovaDataRemarcacao] = useState('');
 
   useEffect(() => {
-    const fetchAulas = async () => {
+    const fetchData = async () => {
       try {
-        const result = await api.getAulas();
-        if (result.success && result.data) {
-          setAulas(result.data);
-        }
+        const [aulasRes, salasRes, usersRes] = await Promise.all([
+          api.getAulas(),
+          api.getSalas(),
+          api.getUsers()
+        ]);
+        if (aulasRes.success && aulasRes.data) setAulas(aulasRes.data);
+        if (salasRes.success && salasRes.data) setEstudios(salasRes.data);
+        if (usersRes.success && usersRes.data) setUsers(usersRes.data);
       } catch (error) {
-        console.error('Error fetching aulas:', error);
+        console.error('Error fetching data:', error);
       } finally {
         setLoading(false);
       }
     };
-    fetchAulas();
+    fetchData();
   }, []);
 
   if (!user) return null;
@@ -91,11 +99,15 @@ export function Aulas() {
     if (user.role === 'ALUNO') base = base.filter(a => a.alunoId === user.id);
     else if (user.role === 'ENCARREGADO') {
       const meus = user.alunosIds ?? [];
-      // "minhas" = aulas em que algum dos meus alunos é o criador principal
       base = base.filter(a => meus.includes(a.alunoId));
     } else if (user.role === 'PROFESSOR') {
       base = base.filter(a => a.professorId === user.id);
     }
+    
+    if (activeTab === 'historico') {
+      base = base.filter(a => a.status === 'REALIZADA');
+    }
+    
     return applyFilters(base);
   };
 
@@ -115,7 +127,7 @@ export function Aulas() {
   // ── Lotação ───────────────────────────────────────────────────────────────
 
   const getCapacidade = (aula: PedidoAula) =>
-    mockEstudios.find(e => e.id === aula.estudioId)?.capacidade ?? 0;
+    estudios.find(e => e.id === aula.estudioId)?.capacidade ?? 0;
 
   const getOcupacao = (aula: PedidoAula) =>
     aula.participantes?.length ? aula.participantes.length : 1;
@@ -134,7 +146,7 @@ export function Aulas() {
   const getAlunosDisponiveis = (aula: PedidoAula) => {
     if (user.role !== 'ENCARREGADO') return [];
     const ids = aula.participantes?.map(p => p.alunoId) ?? [aula.alunoId];
-    return mockUsers.filter(u => (user.alunosIds ?? []).includes(u.id) && !ids.includes(u.id));
+    return users.filter(u => (user.alunosIds ?? []).includes(u.id) && !ids.includes(u.id));
   };
 
   const podeJuntar = (aula: PedidoAula): boolean => {
@@ -155,7 +167,7 @@ export function Aulas() {
     if (user.role === 'ALUNO') {
       novo = { alunoId: user.id, alunoNome: user.nome };
     } else if (user.role === 'ENCARREGADO') {
-      const aluno = mockUsers.find(u => u.id === joinAlunoSelecionado);
+      const aluno = users.find(u => u.id === joinAlunoSelecionado);
       if (!aluno) { toast.error('Selecione um aluno.'); return; }
       novo = { alunoId: aluno.id, alunoNome: aluno.nome, encarregadoId: user.id };
     }
@@ -193,6 +205,23 @@ export function Aulas() {
   const handleConfirmarRealizacao = (id: string) => {
     setAulas(aulas.map(a => a.id === id ? { ...a, status: 'REALIZADA' as AulaStatus } : a));
     toast.success('Aula confirmada como realizada!');
+  };
+
+  const handleSugerirRemarcacao = async () => {
+    if (!sugerirRemarcacaoModal || !novaDataRemarcacao) {
+      toast.error('Selecione uma nova data');
+      return;
+    }
+    try {
+      const result = await api.sugerirNovaDataAula(Number(sugerirRemarcacaoModal), novaDataRemarcacao);
+      if (result.success) {
+        toast.success('Sugestão de remarcação enviada à direção!');
+        setSugerirRemarcacaoModal(null);
+        setNovaDataRemarcacao('');
+      }
+    } catch (error) {
+      toast.error('Erro ao enviar sugestão');
+    }
   };
 
   const handleRemarcar = (
@@ -376,9 +405,14 @@ export function Aulas() {
               )}
               {/* PROFESSOR — Confirmar realização (em CONFIRMADA) */}
               {user.role === 'PROFESSOR' && aula.status === 'CONFIRMADA' && (
-                <button onClick={() => handleConfirmarRealizacao(aula.id)} className="flex items-center gap-1 bg-[#0d6b5e] text-white px-3 py-2 rounded-lg hover:bg-[#065147] transition-colors text-sm whitespace-nowrap">
-                  <CheckCircle className="w-4 h-4" /> Confirmar Realização
-                </button>
+                <div className="flex gap-2">
+                  <button onClick={() => handleConfirmarRealizacao(aula.id)} className="flex items-center gap-1 bg-[#0d6b5e] text-white px-3 py-2 rounded-lg hover:bg-[#065147] transition-colors text-sm whitespace-nowrap">
+                    <CheckCircle className="w-4 h-4" /> Confirmar
+                  </button>
+                  <button onClick={() => setSugerirRemarcacaoModal(aula.id)} className="flex items-center gap-1 bg-orange-600 text-white px-3 py-2 rounded-lg hover:bg-orange-700 transition-colors text-sm whitespace-nowrap">
+                    <CalendarOff className="w-4 h-4" /> Remarcar
+                  </button>
+                </div>
               )}
               {mostrarJuntar && (
                 <button
@@ -442,7 +476,7 @@ export function Aulas() {
 
   const aulasFiltradas = getAulasFiltradas();
   const aulasDisponiveisParaInscricao = getAulasDisponiveisParaInscricao();
-  const professores = mockUsers.filter(u => u.role === 'PROFESSOR');
+  const professores = users.filter(u => u.role === 'PROFESSOR');
 
   const showSubTabs = user.role === 'ENCARREGADO';
 
@@ -501,7 +535,7 @@ export function Aulas() {
           <select value={filtroEstudio} onChange={e => setFiltroEstudio(e.target.value)}
             className="px-3 py-1.5 rounded-lg text-sm bg-white/10 text-white border border-white/20 focus:outline-none focus:border-[#c9a84c] text-white">
             <option value="TODOS">Todos</option>
-            {mockEstudios.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
+            {estudios.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
           </select>
         </div>
       )}
@@ -519,6 +553,7 @@ export function Aulas() {
         direcaoCancelarModal={direcaoCancelarModal}
         setDirecaoCancelarModal={setDirecaoCancelarModal}
         aulas={aulas}
+        estudios={estudios}
         handleRejeitar={handleRejeitar}
         onRemarcar={handleRemarcar}
       />
@@ -560,15 +595,29 @@ export function Aulas() {
           {/* Abas principais */}
           {user.role !== 'ALUNO' && (
             <div className="flex items-center gap-2">
-              {(['marcar', 'agenda'] as const).map(tab => (
-                <button key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={`px-5 py-2 rounded-lg transition-colors ${activeTab === tab ? 'bg-[#c9a84c] text-[#0a1a17]' : 'bg-white/10 text-white/70 hover:bg-white/20'}`}
-                  style={{ fontWeight: activeTab === tab ? 600 : 400 }}
-                >
-                  {tab === 'marcar' ? 'Marcar Aulas' : 'Agenda de Aulas'}
-                </button>
-              ))}
+              {user.role === 'PROFESSOR' ? (
+                <>
+                  {(['marcar', 'agenda', 'historico'] as const).map(tab => (
+                    <button key={tab}
+                      onClick={() => setActiveTab(tab)}
+                      className={`px-5 py-2 rounded-lg transition-colors ${activeTab === tab ? 'bg-[#c9a84c] text-[#0a1a17]' : 'bg-white/10 text-white/70 hover:bg-white/20'}`}
+                      style={{ fontWeight: activeTab === tab ? 600 : 400 }}
+                    >
+                      {tab === 'marcar' ? 'Marcar' : tab === 'agenda' ? 'Agenda' : 'Histórico'}
+                    </button>
+                  ))}
+                </>
+              ) : (
+                (['marcar', 'agenda'] as const).map(tab => (
+                  <button key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={`px-5 py-2 rounded-lg transition-colors ${activeTab === tab ? 'bg-[#c9a84c] text-[#0a1a17]' : 'bg-white/10 text-white/70 hover:bg-white/20'}`}
+                    style={{ fontWeight: activeTab === tab ? 600 : 400 }}
+                  >
+                    {tab === 'marcar' ? 'Marcar Aulas' : 'Agenda de Aulas'}
+                  </button>
+                ))
+              )}
             </div>
           )}
 
@@ -718,9 +767,61 @@ export function Aulas() {
                 )}
               </div>
             )}
+
+            {activeTab === 'historico' && user.role === 'PROFESSOR' && (
+              <div className="space-y-6">
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-[#0d6b5e]/5">
+                  <h2 className="text-xl font-semibold text-[#0d1b19] mb-2">Histórico de Aulas Lecionadas</h2>
+                  <p className="text-sm text-[#4d7068]">Aulas que já foram realizadas</p>
+                </div>
+                
+                {aulasFiltradas.length === 0 ? (
+                  <div className="bg-white p-12 rounded-2xl shadow-sm text-center border border-[#0d6b5e]/5">
+                    <Calendar className="w-16 h-16 text-[#0d6b5e]/20 mx-auto mb-4" />
+                    <p className="text-[#4d7068] mb-1">Nenhuma aula realizada</p>
+                    <p className="text-sm text-[#4d7068]/60">O histórico de aulas lecionadas aparecerá aqui</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {aulasFiltradas.map(a => renderAulaCard(a, false))}
+                  </div>
+                )}
+              </div>
+            )}
           </>
         )}
       </div>
+
+      {sugerirRemarcacaoModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
+            <h3 className="text-lg font-semibold text-[#0d1b19] mb-4">Sugerir Nova Data</h3>
+            <p className="text-sm text-[#4d7068] mb-4">
+              Selecione uma nova data para a aula. A direção receberá a sua sugestão eirá analisar.
+            </p>
+            <input
+              type="datetime-local"
+              value={novaDataRemarcacao}
+              onChange={(e) => setNovaDataRemarcacao(e.target.value)}
+              className="w-full p-3 border border-[#0d6b5e]/20 rounded-lg mb-4 text-[#0d1b19]"
+            />
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => { setSugerirRemarcacaoModal(null); setNovaDataRemarcacao(''); }}
+                className="px-4 py-2 text-[#4d7068] hover:bg-[#f0f5f4] rounded-lg transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSugerirRemarcacao}
+                className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+              >
+                Enviar Sugestão
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

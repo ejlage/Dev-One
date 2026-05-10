@@ -1,64 +1,48 @@
-//Define os endpoints de aulas e liga-os ao controller
-
-import { autorizar, verifyToken } from "../middleware/auth.middleware.js";
-import {
-  getSalasDisponiveisController,
-  associarSalaAulaController,
-  getAulasController,
-  confirmarConclusaoController,
-  comunicarAusenciaController,
-  substituirProfessorController,
-  remarcarAulaController,
-} from "../controllers/aulas.controller.js";
+import * as aulasController from "../controllers/aulas.controller.js";
+import { verifyToken, hasRole } from "../middleware/auth.middleware.js";
 
 export default async function aulasRoutes(fastify) {
+  fastify.addHook("onRequest", async (req, reply) => {
+    return verifyToken(req, reply);
+  });
 
-  //T11 - salas disponíveis num slot horário
-  fastify.get(
-    "/aulas/salas-disponiveis",
-    { preHandler: autorizar(["ENCARREGADO", "PROFESSOR", "DIRECAO"]) },
-    getSalasDisponiveisController
-  );
+  fastify.get("/", aulasController.getAllAulas);
 
-  //T11 – associar sala a uma aula
-  fastify.patch(
-    "/aulas/:idaula/associar-sala",
-    { preHandler: autorizar(["DIRECAO"]) },
-    associarSalaAulaController
-  );
+  fastify.get("/:id", aulasController.getAulaById);
 
-  //T12 – consultar aulas com filtros
-  fastify.get(
-    "/aulas",
-    { preHandler: verifyToken },
-    getAulasController
-  );
+  fastify.post("/", async (req, reply) => {
+    if (!hasRole(req.user.role, "PROFESSOR", "DIRECAO")) {
+      return reply.status(403).send({ success: false, error: "Acesso negated" });
+    }
+    return aulasController.createAula(req, reply);
+  });
 
-  //T13 – professor confirma realização da aula
-  fastify.patch(
-    "/aulas/:idaula/concluir",
-    { preHandler: autorizar(["PROFESSOR"]) },
-    confirmarConclusaoController
-  );
+  fastify.put("/:id", async (req, reply) => {
+    if (!hasRole(req.user.role, "PROFESSOR", "DIRECAO")) {
+      return reply.status(403).send({ success: false, error: "Acesso negated" });
+    }
+    return aulasController.updateAula(req, reply);
+  });
 
-  //T14 – professor comunica ausência
-  fastify.post(
-    "/aulas/:idaula/ausencia",
-    { preHandler: autorizar(["PROFESSOR"]) },
-    comunicarAusenciaController
-  );
+  fastify.delete("/:id", async (req, reply) => {
+    if (!hasRole(req.user.role, "DIRECAO")) {
+      return reply.status(403).send({ success: false, error: "Acesso negated" });
+    }
+    return aulasController.deleteAula(req, reply);
+  });
 
-  //T15 – direção substitui professor
-  fastify.patch(
-    "/aulas/:idaula/substituir-professor",
-    { preHandler: autorizar(["DIRECAO"]) },
-    substituirProfessorController
-  );
+  fastify.post("/:id/confirm", aulasController.confirmAula);
 
-  //T16 – remarcar aula para nova data/hora
-  fastify.patch(
-    "/aulas/:idaula/remarcar",
-    { preHandler: autorizar(["PROFESSOR", "DIRECAO"]) },
-    remarcarAulaController
-  );
+  fastify.post("/:id/cancel", aulasController.cancelAula);
+
+  fastify.put("/:id/remarcar", aulasController.remarcarAula);
+
+  fastify.put("/:id/sugerir-nova-data", async (req, reply) => {
+    if (!hasRole(req.user.role, "PROFESSOR")) {
+      return reply.status(403).send({ success: false, error: "Apenas professores podem sugerir novas datas" });
+    }
+    return aulasController.sugerirNovaData(req, reply);
+  });
+
+  fastify.post("/:id/join", aulasController.joinAula);
 }

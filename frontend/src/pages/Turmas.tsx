@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Link } from 'react-router';
-import { mockUsers, mockEstudios } from '../data/mockData';
-import { Turma, TurmaStatus, NivelTurma, AlunoInscrito } from '../types';
 import api from '../services/api';
+import { Turma, TurmaStatus, NivelTurma, AlunoInscrito } from '../types';
 import {
   ArrowLeft, Plus, Users, Clock, MapPin, Calendar, ChevronDown,
   ChevronUp, Eye, BookOpen, Pencil,
@@ -128,7 +127,7 @@ function TurmaGerirCard({
   const dias   = (turma.diasSemana || []).map(d => DIAS[d]).join(' / ');
 
   const inscritosIds     = (turma.alunosInscritos || []).map(a => a.alunoId);
-  const alunosDisponiveis = mockUsers.filter(u => u.role === 'ALUNO' && !inscritosIds.includes(u.id));
+  const alunosDisponiveis = users.filter(u => u.role === 'ALUNO' && !inscritosIds.includes(u.id));
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-[#0d6b5e]/5 overflow-hidden hover:shadow-md transition-shadow">
@@ -279,8 +278,8 @@ function TurmaEncarregadoCard({
   const pct    = turma.lotacaoMaxima || 0 > 0 ? (turma.alunosInscritos?.length || 0 / turma.lotacaoMaxima || 0) * 100 : 0;
 const dias   = (turma.diasSemana || []).map(d => DIAS[d]).join(' / ');
   const inscritosIds     = (turma.alunosInscritos || []).map(a => a.alunoId);
-  const disponiveis  = mockUsers.filter(u => meusAlunosIds.includes(u.id) && !inscritosIds.includes(u.id));
-  const jaInscritos  = mockUsers.filter(u => meusAlunosIds.includes(u.id) && inscritosIds.includes(u.id));
+  const disponiveis  = users.filter(u => meusAlunosIds.includes(u.id) && !inscritosIds.includes(u.id));
+  const jaInscritos  = users.filter(u => meusAlunosIds.includes(u.id) && inscritosIds.includes(u.id));
 
   return (
     <div className="bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow overflow-hidden border border-black/5">
@@ -419,7 +418,7 @@ function NovaTurmaForm({
     status: editando.status, cor: editando.cor, requisitos: editando.requisitos ?? '',
   } : { ...FORM_VAZIO });
 
-  const estudio  = mockEstudios.find(e => e.id === form.estudioId);
+  const estudio  = estudios.find(e => e.id === form.estudioId);
   const horaFim  = calcHoraFim(form.horaInicio, form.duracao);
 
   const toggleDia = (d: number) =>
@@ -547,7 +546,7 @@ function NovaTurmaForm({
               <select value={form.estudioId} onChange={e => setForm(f => ({ ...f, estudioId: e.target.value }))}
                 className="w-full px-4 py-2.5 border border-[#0d6b5e]/20 rounded-lg bg-[#f4f9f8] text-sm focus:outline-none focus:border-[#0d6b5e] text-[#0a1a17]">
                 <option value="">Selecionar…</option>
-                {mockEstudios.map(e => <option key={e.id} value={e.id}>{e.nome} (cap. {e.capacidade})</option>)}
+                {estudios.map(e => <option key={e.id} value={e.id}>{e.nome} (cap. {e.capacidade})</option>)}
               </select>
             </div>
             <div>
@@ -652,33 +651,39 @@ function NovaTurmaForm({
 export function Turmas() {
   const { user } = useAuth();
   const [turmas, setTurmas] = useState<Turma[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
+  const [estudios, setEstudios] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editando, setEditando] = useState<Turma | null>(null);
   const [filtroModalidade, setFiltroModalidade] = useState('TODAS');
-  const [filtroNivel, setFiltroNivel] = useState('TODOS');
+  const [filtroNivel, setFiltroNivel] = useState('TODAS');
   const [filtroProf, setFiltroProf] = useState('TODOS');
 
   useEffect(() => {
-    const fetchTurmas = async () => {
+    const fetchData = async () => {
       try {
-        const result = await api.getTurmas();
-        if (result.success && result.data) {
-          setTurmas(result.data);
-        }
+        const [turmasRes, usersRes, salasRes] = await Promise.all([
+          api.getTurmas(),
+          api.getUsers(),
+          api.getSalas()
+        ]);
+        if (turmasRes.success && turmasRes.data) setTurmas(turmasRes.data);
+        if (usersRes.success && usersRes.data) setUsers(usersRes.data);
+        if (salasRes.success && salasRes.data) setEstudios(salasRes.data);
       } catch (error) {
-        console.error('Error fetching turmas:', error);
+        console.error('Error fetching data:', error);
       } finally {
         setLoading(false);
       }
     };
-    fetchTurmas();
+    fetchData();
   }, []);
 
   if (!user) return null;
 
   const todasModalidades  = Array.from(new Set((turmas || []).map(t => t.modalidade))).sort();
-  const todosProfessores  = mockUsers.filter(u => u.role === 'PROFESSOR');
+  const todosProfessores  = users.filter(u => u.role === 'PROFESSOR');
 
 const turmasFiltradas = (turmas || []).filter(t => {
     if (user.role === 'PROFESSOR' && t.professorId !== user.id) return false;
@@ -727,7 +732,7 @@ const turmasFiltradas = (turmas || []).filter(t => {
   };
 
   const handleInscrever = (turmaId: string, alunoId: string) => {
-    const aluno = mockUsers.find(u => u.id === alunoId);
+    const aluno = users.find(u => u.id === alunoId);
     if (!aluno) return;
     setTurmas(prev => (prev || []).map(t => {
       if (t.id !== turmaId) return t;

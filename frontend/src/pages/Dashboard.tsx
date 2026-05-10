@@ -4,7 +4,6 @@ import { Calendar, Clock, CheckCircle2, AlertCircle, ChevronRight, ShoppingBag, 
 import { useState, useEffect } from 'react';
 import { PrintAulasModal } from '../components/PrintAulasModal';
 import api from '../services/api';
-import { mockTurmas } from '../data/mockData';
 
 export function Dashboard() {
   const { user } = useAuth();
@@ -13,6 +12,7 @@ export function Dashboard() {
   const [aulas, setAulas] = useState<any[]>([]);
   const [anuncios, setAnuncios] = useState<any[]>([]);
   const [turmas, setTurmas] = useState<any[]>([]);
+  const [disponibilidades, setDisponibilidades] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const itemsPerPage = 5;
 
@@ -20,15 +20,24 @@ export function Dashboard() {
     const fetchData = async () => {
       if (!user) return;
       try {
-        const [aulasRes, anunciosRes, turmasRes] = await Promise.all([
+        const fetchPromises = [
           api.getAulas(),
           api.getAnuncios(),
           api.getTurmas()
-        ]);
+        ];
         
-        if (aulasRes.success) setAulas(aulasRes.data || []);
-        if (anunciosRes.success) setAnuncios(anunciosRes.data || []);
-        if (turmasRes.success) setTurmas(turmasRes.data || []);
+        if (user.role === 'PROFESSOR') {
+          fetchPromises.push(api.getProfessorDisponibilidades());
+        }
+        
+        const results = await Promise.all(fetchPromises);
+        
+        if (results[0].success) setAulas(results[0].data || []);
+        if (results[1].success) setAnuncios(results[1].data || []);
+        if (results[2].success) setTurmas(results[2].data || []);
+        if (user.role === 'PROFESSOR' && results[3]?.success) {
+          setDisponibilidades(results[3].data || []);
+        }
       } catch (error) {
         console.error('Error fetching data:', error);
       } finally {
@@ -146,227 +155,38 @@ export function Dashboard() {
               <span className="hidden sm:inline">Imprimir Aulas Realizadas</span>
               <span className="sm:hidden">Imprimir</span>
             </button>
-          )}
+)}
         </div>
 
-        {/* ── Estatísticas ─────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-
-          {/* DIREÇÃO */}
-          {user.role === 'DIRECAO' && (
-            <>
-              <div className="bg-white p-6 rounded-2xl border border-[#0d6b5e]/10 shadow-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-4xl text-[#0d6b5e]">{stats.pendentes}</div>
-                  <div className="w-12 h-12 bg-[#e2f0ed] rounded-xl flex items-center justify-center">
-                    <Clock className="w-6 h-6 text-[#0d6b5e]" />
-                  </div>
-                </div>
-                <div className="text-sm text-[#4d7068]">Pedidos de Aulas</div>
-                <div className="text-sm text-[#4d7068]">Pendentes</div>
-              </div>
-              <div className="bg-white p-6 rounded-2xl border border-[#c9a84c]/20 shadow-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-4xl text-[#c9a84c]">{stats.anunciosPendentes}</div>
-                  <div className="w-12 h-12 bg-[#c9a84c]/10 rounded-xl flex items-center justify-center">
-                    <ShoppingBag className="w-6 h-6 text-[#c9a84c]" />
-                  </div>
-                </div>
-                <div className="text-sm text-[#4d7068]">Anúncios Marketplace</div>
-                <div className="text-sm text-[#4d7068]">Pendentes</div>
-              </div>
-              <div className="bg-white p-6 rounded-2xl border border-[#0d6b5e]/10 shadow-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-4xl text-[#1a9885]">{stats.agendadas}</div>
-                  <div className="w-12 h-12 bg-[#e2f0ed] rounded-xl flex items-center justify-center">
-                    <Calendar className="w-6 h-6 text-[#1a9885]" />
-                  </div>
-                </div>
-                <div className="text-sm text-[#4d7068]">Aulas</div>
-                <div className="text-sm text-[#4d7068]">Agendadas</div>
-              </div>
-              <div className="bg-white p-6 rounded-2xl border border-red-200 shadow-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-4xl text-red-600">{stats.rejeitadas}</div>
-                  <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center">
-                    <AlertCircle className="w-6 h-6 text-red-600" />
-                  </div>
-                </div>
-                <div className="text-sm text-[#4d7068]">Aulas</div>
-                <div className="text-sm text-[#4d7068]">Rejeitadas</div>
-              </div>
-            </>
-          )}
-
-          {/* PROFESSOR */}
-          {user.role === 'PROFESSOR' && (
-            <>
-              <div className="bg-white p-6 rounded-2xl border border-[#0d6b5e]/10 shadow-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-4xl text-[#0d6b5e]">{stats.pendentes}</div>
-                  <div className="w-12 h-12 bg-[#e2f0ed] rounded-xl flex items-center justify-center">
-                    <Clock className="w-6 h-6 text-[#0d6b5e]" />
-                  </div>
-                </div>
-                <div className="text-sm text-[#4d7068]">Aulas</div>
-                <div className="text-sm text-[#4d7068]">Pendentes</div>
-              </div>
-              <div className="bg-white p-6 rounded-2xl border border-[#0d6b5e]/10 shadow-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-4xl text-[#1a9885]">{stats.agendadas}</div>
-                  <div className="w-12 h-12 bg-[#e2f0ed] rounded-xl flex items-center justify-center">
-                    <CheckCircle2 className="w-6 h-6 text-[#1a9885]" />
-                  </div>
-                </div>
-                <div className="text-sm text-[#4d7068]">Aulas</div>
-                <div className="text-sm text-[#4d7068]">Confirmadas</div>
-              </div>
-              <div className="bg-white p-6 rounded-2xl border border-[#0d6b5e]/10 shadow-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-4xl text-[#c9a84c]">{stats.turmasAbertas}</div>
-                  <div className="w-12 h-12 bg-[#c9a84c]/10 rounded-xl flex items-center justify-center">
-                    <BookOpen className="w-6 h-6 text-[#c9a84c]" />
-                  </div>
-                </div>
-                <div className="text-sm text-[#4d7068]">Grupos</div>
-                <div className="text-sm text-[#4d7068]">Abertas</div>
-              </div>
-              <div className="bg-white p-6 rounded-2xl border border-red-200 shadow-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-4xl text-red-600">{stats.rejeitadas}</div>
-                  <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center">
-                    <AlertCircle className="w-6 h-6 text-red-600" />
-                  </div>
-                </div>
-                <div className="text-sm text-[#4d7068]">Aulas</div>
-                <div className="text-sm text-[#4d7068]">Rejeitadas</div>
-              </div>
-            </>
-          )}
-
-          {/* ENCARREGADO / ALUNO */}
-          {(user.role === 'ENCARREGADO' || user.role === 'ALUNO') && (
-            <>
-              <div className="bg-white p-6 rounded-2xl border border-[#0d6b5e]/10 shadow-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-4xl text-[#0d6b5e]">{stats.pendentes}</div>
-                  <div className="w-12 h-12 bg-[#e2f0ed] rounded-xl flex items-center justify-center">
-                    <Clock className="w-6 h-6 text-[#0d6b5e]" />
-                  </div>
-                </div>
-                <div className="text-sm text-[#4d7068]">Pedidos</div>
-                <div className="text-sm text-[#4d7068]">Pendentes</div>
-              </div>
-              <div className="bg-white p-6 rounded-2xl border border-[#0d6b5e]/10 shadow-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-4xl text-[#1a9885]">{stats.agendadas}</div>
-                  <div className="w-12 h-12 bg-[#e2f0ed] rounded-xl flex items-center justify-center">
-                    <CheckCircle2 className="w-6 h-6 text-[#1a9885]" />
-                  </div>
-                </div>
-                <div className="text-sm text-[#4d7068]">Aulas</div>
-                <div className="text-sm text-[#4d7068]">Aprovadas</div>
-              </div>
-              <div className="bg-white p-6 rounded-2xl border border-red-200 shadow-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-4xl text-red-600">{stats.rejeitadas}</div>
-                  <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center">
-                    <AlertCircle className="w-6 h-6 text-red-600" />
-                  </div>
-                </div>
-                <div className="text-sm text-[#4d7068]">Pedidos</div>
-                <div className="text-sm text-[#4d7068]">Rejeitados</div>
-              </div>
-              {user.role === 'ENCARREGADO' && meusAnuncios.length > 0 && (
-                <>
-                  <div className="bg-white p-6 rounded-2xl border border-[#c9a84c]/20 shadow-sm">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="text-4xl text-[#c9a84c]">{stats.anunciosPendentes}</div>
-                      <div className="w-12 h-12 bg-[#c9a84c]/10 rounded-xl flex items-center justify-center">
-                        <ShoppingBag className="w-6 h-6 text-[#c9a84c]" />
-                      </div>
+        {user.role === 'PROFESSOR' && disponibilidades.length > 0 && (
+          <div className="bg-white rounded-2xl shadow-sm p-6 mb-8 border border-[#0d6b5e]/10">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl text-[#0a1a17]">As Minhas Disponibilidades</h2>
+              <Link to="/dashboard/disponibilidades"
+                className="flex items-center gap-1 text-sm text-[#0d6b5e] hover:text-[#065147] transition-colors"
+                style={{ fontWeight: 500 }}>
+                Gerir <ChevronRight className="w-4 h-4" />
+              </Link>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {disponibilidades.slice(0, 6).map(d => (
+                <div key={d.id} className="p-4 rounded-xl border border-[#0d6b5e]/10 bg-[#f4f9f8]">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-8 h-8 bg-[#0d6b5e] rounded-lg flex items-center justify-center">
+                      <Clock className="w-4 h-4 text-white" />
                     </div>
-                    <div className="text-sm text-[#4d7068]">Anúncios</div>
-                    <div className="text-sm text-[#4d7068]">Pendentes</div>
-                  </div>
-                  <div className="bg-white p-6 rounded-2xl border border-[#0d6b5e]/10 shadow-sm">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="text-4xl text-[#0d6b5e]">{stats.anunciosAprovados}</div>
-                      <div className="w-12 h-12 bg-[#e2f0ed] rounded-xl flex items-center justify-center">
-                        <CheckCircle2 className="w-6 h-6 text-[#0d6b5e]" />
-                      </div>
+                    <div>
+                      <div className="text-sm font-medium text-[#0a1a17]">{d.diaSemana}</div>
+                      <div className="text-xs text-[#4d7068]">{d.horaInicio} - {d.horaFim}</div>
                     </div>
-                    <div className="text-sm text-[#4d7068]">Anúncios</div>
-                    <div className="text-sm text-[#4d7068]">Aprovados</div>
                   </div>
-                  <div className="bg-white p-6 rounded-2xl border border-red-200 shadow-sm">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="text-4xl text-red-600">{stats.anunciosRejeitados}</div>
-                      <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center">
-                        <AlertCircle className="w-6 h-6 text-red-600" />
-                      </div>
-                    </div>
-                    <div className="text-sm text-[#4d7068]">Anúncios</div>
-                    <div className="text-sm text-[#4d7068]">Rejeitados</div>
+                  <div className="text-xs text-[#4d7068]">
+                    {d.modalidadeNome}
                   </div>
-                </>
-              )}
-            </>
-          )}
-        </div>
-
-        {/* ── Turmas do professor (resumo) ─────────────────────────────────── */}
-        {user.role === 'PROFESSOR' && (
-          (() => {
-            const minhasTurmas = mockTurmas.filter(t => t.professorId === user.id && t.status !== 'ARQUIVADA');
-            if (minhasTurmas.length === 0) return null;
-            return (
-              <div className="bg-white rounded-2xl shadow-sm p-6 mb-8 border border-[#0d6b5e]/10">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl text-[#0a1a17]">Os Meus Grupos</h2>
-                  <Link to="/dashboard/turmas"
-                    className="flex items-center gap-1 text-sm text-[#0d6b5e] hover:text-[#065147] transition-colors"
-                    style={{ fontWeight: 500 }}>
-                    Ver todas <ChevronRight className="w-4 h-4" />
-                  </Link>
                 </div>
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {minhasTurmas.slice(0, 3).map(t => {
-                    const livres = t.lotacaoMaxima - t.alunosInscritos.length;
-                    const pct = t.lotacaoMaxima > 0 ? (t.alunosInscritos.length / t.lotacaoMaxima) * 100 : 0;
-                    return (
-                      <div key={t.id} className="rounded-xl overflow-hidden border border-[#0d6b5e]/5">
-                        <div className="h-1.5" style={{ background: t.cor }} />
-                        <div className="p-4">
-                          <div className="flex items-start justify-between mb-2">
-                            <p className="text-sm text-[#0a1a17]" style={{ fontWeight: 600 }}>{t.nome}</p>
-                            <span className={`text-xs px-2 py-0.5 rounded-full ml-2 shrink-0 ${t.status === 'ABERTA' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}
-                              style={{ fontWeight: 500 }}>
-                              {t.status === 'ABERTA' ? 'Aberta' : 'Fechada'}
-                            </span>
-                          </div>
-                          <p className="text-xs text-[#4d7068] mb-3">{t.modalidade} · {t.nivel}</p>
-                          <div className="flex justify-between text-xs mb-1">
-                            <span className="text-[#4d7068]">{t.alunosInscritos.length}/{t.lotacaoMaxima} alunos</span>
-                            <span className={livres > 0 ? 'text-[#0d6b5e]' : 'text-red-500'} style={{ fontWeight: 500 }}>
-                              {livres > 0 ? `${livres} vagas` : 'Esgotado'}
-                            </span>
-                          </div>
-                          <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                            <div className="h-full rounded-full" style={{ width: `${Math.min(pct, 100)}%`, background: t.cor }} />
-                          </div>
-                          <div className="mt-2 flex items-center gap-1 text-xs text-[#4d7068]">
-                            <Users className="w-3 h-3" />
-                            {t.alunosInscritos.length} aluno{t.alunosInscritos.length !== 1 ? 's' : ''} inscrito{t.alunosInscritos.length !== 1 ? 's' : ''}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })()
+              ))}
+            </div>
+          </div>
         )}
 
         {/* ── Histórico de aulas ───────────────────────────────────────────── */}

@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router';
-import { mockUsers } from '../data/mockData';
-import { Figurino, FigurinoStatus } from '../types';
 import api from '../services/api';
+import { Figurino, FigurinoStatus } from '../types';
 import { Package, ArrowLeft, Plus, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
 import { Toaster } from '../components/ui/sonner';
 
 export function Stock() {
   const [figurinos, setFigurinos] = useState<Figurino[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filtroStatus, setFiltroStatus] = useState<'TODOS' | FigurinoStatus>('TODOS');
   const [showNovoForm, setShowNovoForm] = useState(false);
@@ -27,19 +27,25 @@ export function Stock() {
   });
 
   useEffect(() => {
-    const fetchFigurinos = async () => {
+    const fetchData = async () => {
       try {
-        const result = await api.getFigurinos();
-        if (result.success && result.data) {
-          setFigurinos(result.data.filter((f: any) => f.tipo === 'ESCOLA'));
+        const [figurinosRes, usersRes] = await Promise.all([
+          api.getFigurinos(),
+          api.getUsers()
+        ]);
+        if (figurinosRes.success && figurinosRes.data) {
+          setFigurinos(figurinosRes.data.filter((f: any) => f.tipo === 'ESCOLA'));
+        }
+        if (usersRes.success && usersRes.data) {
+          setUsers(usersRes.data);
         }
       } catch (error) {
-        console.error('Error fetching figurinos:', error);
+        console.error('Error fetching data:', error);
       } finally {
         setLoading(false);
       }
     };
-    fetchFigurinos();
+    fetchData();
   }, []);
 
   const getFigurinosFiltrados = () => {
@@ -78,7 +84,7 @@ export function Stock() {
       return;
     }
 
-    const usuario = mockUsers.find(u => u.id === dadosAluguel.usuarioId);
+    const usuario = users.find(u => u.id === dadosAluguel.usuarioId);
     if (!usuario) {
       toast.error('Usuário não encontrado');
       return;
@@ -133,7 +139,7 @@ export function Stock() {
   };
 
   const figurinosFiltrados = getFigurinosFiltrados();
-  const todosUsuarios = mockUsers.filter(u => u.role !== 'DIRECAO');
+  const todosUsuarios = users.filter(u => u.role !== 'DIRECAO');
 
   return (
     <div className="min-h-screen bg-[#f4f9f8]">

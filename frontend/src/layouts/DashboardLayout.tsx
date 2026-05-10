@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router';
 import { useAuth } from '../contexts/AuthContext';
-import { LogOut, Home, Calendar, ShoppingBag, Package, Users, BookOpen } from 'lucide-react';
+import { LogOut, Home, Calendar, ShoppingBag, Package, Users, BookOpen, Clock } from 'lucide-react';
 
 export function DashboardLayout() {
   const { user, logout } = useAuth();
@@ -46,6 +46,12 @@ export function DashboardLayout() {
       icon: Calendar,
       label: 'Aulas',
       roles: ['ALUNO', 'ENCARREGADO', 'PROFESSOR', 'DIRECAO']
+    },
+    {
+      path: '/dashboard/disponibilidades',
+      icon: Clock,
+      label: 'Disponibilidades',
+      roles: ['PROFESSOR']
     },
     {
       path: '/dashboard/grupos',

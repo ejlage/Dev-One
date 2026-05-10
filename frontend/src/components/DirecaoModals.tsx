@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { XCircle, RefreshCw, Clock, MapPin, CheckCircle2, AlertCircle, ChevronRight } from 'lucide-react';
 import { PedidoAula } from '../types';
-import { mockDisponibilidades, mockEstudios } from '../data/mockData';
+import api from '../services/api';
 import { SlotDisponibilidade } from '../types';
 import { format, addDays, startOfDay } from 'date-fns';
 
@@ -9,6 +9,7 @@ interface DirecaoModalsProps {
   direcaoCancelarModal: string | null;
   setDirecaoCancelarModal: (id: string | null) => void;
   aulas: PedidoAula[];
+  estudios: { id: string; nome: string; capacidade?: number }[];
   handleRejeitar: (id: string) => void;
   onRemarcar?: (aulaId: string, novaData: string, novoHoraInicio: string, novoHoraFim: string, novoEstudioId: string, novoEstudioNome: string) => void;
 }
@@ -67,6 +68,15 @@ export function DirecaoModals({
   const [opcao, setOpcao] = useState<'escolha' | 'remarcar' | null>('escolha');
   const [slotExpandido, setSlotExpandido] = useState<string | null>(null);
   const [dataSelecionada, setDataSelecionada] = useState<{ slot: SlotDisponibilidade; data: string } | null>(null);
+  const [professorSlots, setProfessorSlots] = useState<any[]>([]);
+  
+  useEffect(() => {
+    const fetchData = async () => {
+      const slotsRes = await api.getProfessorDisponibilidades();
+      if (slotsRes.success) setProfessorSlots(slotsRes.data || []);
+    };
+    fetchData();
+  }, []);
 
   const fecharModal = () => {
     setDirecaoCancelarModal(null);
@@ -91,7 +101,7 @@ export function DirecaoModals({
   if (!aulaOriginal) return null;
 
   // Slots do professor desta aula
-  const slotsDoProf = mockDisponibilidades.filter(s => s.professorId === aulaOriginal.professorId);
+  const slotsDoProf = professorSlots.filter(s => s.professorId === aulaOriginal.professorId);
   const slotsPorDia: Record<number, SlotDisponibilidade[]> = {};
   slotsDoProf.forEach(slot => {
     if (!slotsPorDia[slot.diaSemana]) slotsPorDia[slot.diaSemana] = [];
@@ -102,7 +112,7 @@ export function DirecaoModals({
   const handleConfirmarRemarcacao = () => {
     if (!dataSelecionada || !onRemarcar) return;
     const { slot, data } = dataSelecionada;
-    const estudio = mockEstudios.find(e => e.id === slot.estudioId);
+    const estudio = estudos.find(e => String(e.id) === String(slot.estudioId));
     onRemarcar(
       aulaOriginal.id,
       data,

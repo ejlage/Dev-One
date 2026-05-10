@@ -1,6 +1,6 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { X, Printer, ChevronDown, User, CalendarDays } from 'lucide-react';
-import { mockPedidosAulas, mockUsers } from '../data/mockData';
+import api from '../services/api';
 import { User as UserType, PedidoAula } from '../types';
 
 interface Props {
@@ -32,7 +32,22 @@ function fmtDur(min: number) {
 }
 
 export function PrintAulasModal({ currentUser, onClose }: Props) {
-  const professors = mockUsers.filter(u => u.role === 'PROFESSOR');
+  const [users, setUsers] = useState<any[]>([]);
+  const [aulas, setAulas] = useState<any[]>([]);
+  
+  useEffect(() => {
+    const fetchData = async () => {
+      const [usersRes, aulasRes] = await Promise.all([
+        api.getUsers(),
+        api.getAulas()
+      ]);
+      if (usersRes.success) setUsers(usersRes.data || []);
+      if (aulasRes.success) setAulas(aulasRes.data || []);
+    };
+    fetchData();
+  }, []);
+
+  const professors = users.filter(u => u.role === 'PROFESSOR');
 
   const [selectedProfId, setSelectedProfId] = useState<string>(
     currentUser.role === 'PROFESSOR' ? currentUser.id : ''
@@ -51,12 +66,12 @@ export function PrintAulasModal({ currentUser, onClose }: Props) {
 
   const printRef = useRef<HTMLDivElement>(null);
 
-  const selectedProf = mockUsers.find(u => u.id === selectedProfId);
+  const selectedProf = users.find(u => u.id === selectedProfId);
 
   // Todas as aulas realizadas do professor, filtradas pelo range
-  const aulasRealizadas: PedidoAula[] = mockPedidosAulas
+  const aulasRealizadas: PedidoAula[] = aulas
     .filter(a => {
-      if (a.status !== 'REALIZADA' || a.professorId !== selectedProfId) return false;
+      if (a.status !== 'REALIZADA' || String(a.professorId) !== selectedProfId) return false;
       if (dateFrom && a.data < dateFrom) return false;
       if (dateTo   && a.data > dateTo)   return false;
       return true;
@@ -136,7 +151,7 @@ export function PrintAulasModal({ currentUser, onClose }: Props) {
             </p>
             <div className="space-y-2">
               {professors.map(prof => {
-                const count = mockPedidosAulas.filter(a => a.professorId === prof.id && a.status === 'REALIZADA').length;
+                const count = aulas.filter(a => String(a.professorId) === prof.id && a.status === 'REALIZADA').length;
                 return (
                   <button
                     key={prof.id}

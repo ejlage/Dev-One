@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Link } from 'react-router';
-import { mockReservasFigurino, mockFigurinos } from '../data/mockData';
-import { AnuncioMarketplace, AnuncioStatus, TipoTransacao, ReservaFigurino } from '../types';
 import api from '../services/api';
+import { AnuncioMarketplace, AnuncioStatus, TipoTransacao, ReservaFigurino } from '../types';
 import { Plus, Mail, CheckCircle, XCircle, Clock, ArrowLeft, Tag, ShoppingBag, Filter, Calendar, Search, ArrowUpDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { Toaster } from '../components/ui/sonner';
@@ -13,7 +12,7 @@ type SortOption = 'recent' | 'oldest' | 'az' | 'za';
 export function Marketplace() {
   const { user } = useAuth();
   const [anuncios, setAnuncios] = useState<AnuncioMarketplace[]>([]);
-  const [reservas, setReservas] = useState<any[]>(user.role === 'DIRECAO' ? mockReservasFigurino : []);
+  const [reservas, setReservas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showNovoForm, setShowNovoForm] = useState(false);
   const [filtroTipo, setFiltroTipo] = useState<TipoTransacao | 'TODOS'>('TODOS');
@@ -25,14 +24,22 @@ export function Marketplace() {
   const [showReservaForm, setShowReservaForm] = useState<string | null>(null);
   const [reservaData, setReservaData] = useState({ dataInicio: '', dataFim: '' });
   const [viewMode, setViewMode] = useState<'anuncios' | 'reservas'>('anuncios');
+  const [figurinos, setFigurinos] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const anunciosResult = await api.getAnuncios();
+        const [anunciosResult, figurinosResult] = await Promise.all([
+          api.getAnuncios(),
+          api.getFigurinos()
+        ]);
         
         if (anunciosResult.success && anunciosResult.data) {
           setAnuncios(anunciosResult.data);
+        }
+        
+        if (figurinosResult.success && figurinosResult.data) {
+          setFigurinos(figurinosResult.data);
         }
         
         if (user.role === 'DIRECAO') {
@@ -409,7 +416,7 @@ export function Marketplace() {
                   <label className="block text-sm mb-2 text-[#4d7068]">Associar ao Stock</label>
                   <select className="w-full px-4 py-2 border border-[#0d6b5e]/20 rounded-lg bg-[#f4f9f8] focus:outline-none focus:border-[#0d6b5e] text-[#0a1a17]">
                     <option value="">Selecione um figurino do stock</option>
-                    {mockFigurinos.filter(f => f.tipo === 'ESCOLA').map(fig => (
+                    {figurinos.filter(f => f.tipo === 'ESCOLA').map(fig => (
                       <option key={fig.id} value={fig.id}>{fig.nome} - {fig.tamanho} ({fig.status})</option>
                     ))}
                   </select>

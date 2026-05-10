@@ -1,348 +1,398 @@
-// T11 a t16 parte das aulas
+import { PrismaClient } from "@prisma/client";
 
+const prisma = new PrismaClient();
 
-import prisma from "../config/db.js";
-import { existeConflitoSala, existeConflitoProf, timeParaMinutos } from "../utils/aulasHelpers.js";
-import { aulaInclude } from "../utils/aulasInclude.js";
-//import { notificarAusencia, notificarRemarcacao } from "../utils/aulas.notificacoes.js";
-
-
-// t11 - Devolve as salas 
-export async function getSalasDisponiveis(data, horainicio, duracaoaulaMin) {
-  const [ih, im] = horainicio.split(":").map(Number);
-  const inicioMin = ih * 60 + im;
-  const fimMin    = inicioMin + duracaoaulaMin;
-
-  const todasSalas = await prisma.sala.findMany({
-    include: { tiposala: true, estadosala: true },
+export async function getAllAulas() {
+  return prisma.aula.findMany({
+    include: {
+      estadoaula: true,
+      sala: true,
+      pedidodeaula: {
+        include: {
+          disponibilidade: true,
+          grupo: true,
+        },
+      },
+      alunoaula: {
+        include: {
+          aluno: {
+            include: {
+              utilizador: true,
+            },
+          },
+        },
+      },
+    },
   });
-
-  const resultados = await Promise.all(
-    todasSalas.map(async (sala) => {
-      const temConflito = await existeConflitoSala(
-        sala.idsala, new Date(data), inicioMin, fimMin, null
-      );
-      return temConflito ? null : sala;
-    })
-  );
-
-  return resultados.filter(Boolean).map((sala) => ({
-    idsala:         sala.idsala,
-    nomesala:       sala.nomesala,
-    capacidade:     sala.capacidade,
-    nometiposala:   sala.tiposala?.nometiposala ?? null,
-    nomeestadosala: sala.estadosala?.nomeestadosala ?? null,
-  }));
 }
 
-// Associauma sala a uma aula e valida antes de guardar
-export async function associarSalaAula(idaula, idsala) {
-  const sala = await prisma.sala.findUnique({ where: { idsala } });
-  if (!sala)
-    throw { statusCode: 404, message: `sala.idsala=${idsala} não encontrada.` };
-
-  const aula = await prisma.aula.findUnique({
-    where: { idaula },
-    include: { pedidodeaula: true },
+export async function getAulaById(id) {
+  return prisma.aula.findUnique({
+    where: { idaula: parseInt(id) },
+    include: {
+      estadoaula: true,
+      sala: true,
+      pedidodeaula: {
+        include: {
+          disponibilidade: true,
+          grupo: true,
+        },
+      },
+      alunoaula: {
+        include: {
+          aluno: {
+            include: {
+              utilizador: true,
+            },
+          },
+        },
+      },
+    },
   });
-  if (!aula)
-    throw { statusCode: 404, message: `aula.idaula=${idaula} não encontrada.` };
-
-  const pedido    = aula.pedidodeaula;
-  const inicioMin = timeParaMinutos(pedido.horainicio);
-  const fimMin    = inicioMin + timeParaMinutos(pedido.duracaoaula);
-
-  const temConflito = await existeConflitoSala(
-    idsala, pedido.data, inicioMin, fimMin, pedido.idpedidoaula
-  );
-  if (temConflito)
-    throw { statusCode: 409, message: `sala.idsala=${idsala} já está ocupada nesse horário (RF06).` };
-
-  await prisma.pedidodeaula.update({
-    where: { idpedidoaula: pedido.idpedidoaula },
-    data: { salaidsala: idsala },
-  });
-  await prisma.aula.update({
-    where: { idaula },
-    data: { salaidsala: idsala },
-  });
-
-  return prisma.aula.findUnique({ where: { idaula }, include: aulaInclude });
 }
 
+export async function createAula(data) {
+  const { pedidodeaulaidpedidoaula, salaidsala } = data;
 
+  const pedido = await prisma.pedidodeaula.findUnique({
+    where: { idpedidoaula: pedidodeaulaidpedidoaula },
+    include: {
+      disponibilidade: true,
+      sala: true,
+    },
+  });
 
-//T12 - Query aulas para ir buscar dados com os filtros opcionais
-export async function getAulas(filtros = {}) {
-  const {
-    professorutilizadoriduser,
-    encarregadoeducacaoutilizadoriduser,
-    utilizadoriduser_aluno,
-    estadoaulaidestadoaula,
-    data,
-  } = filtros;
-
-  const where = {};
-
-  if (estadoaulaidestadoaula)
-    where.estadoaulaidestadoaula = Number(estadoaulaidestadoaula);
-
-  if (utilizadoriduser_aluno) {
-    where.alunoaula = {
-      some: { aluno: { utilizadoriduser: Number(utilizadoriduser_aluno) } },
-    };
+  if (!pedido) {
+    throw new Error("Pedido de aula não encontrado");
   }
 
-  const wherePedido = {};
-  if (data) wherePedido.data = new Date(data);
-  if (encarregadoeducacaoutilizadoriduser)
-    wherePedido.encarregadoeducacaoutilizadoriduser = Number(encarregadoeducacaoutilizadoriduser);
-  if (professorutilizadoriduser)
-    wherePedido.disponibilidade = {
-      professorutilizadoriduser: Number(professorutilizadoriduser),
-    };
-  if (Object.keys(wherePedido).length > 0) where.pedidodeaula = wherePedido;
-
-  return prisma.aula.findMany({
-    where,
-    include: aulaInclude,
-    orderBy: { pedidodeaula: { data: "asc" } },
-  });
-}
-
-
-
-//T13 - O Professor confirma a realização da aula 
-export async function confirmarConclusaoAula(idaula, professorutilizadoriduser) {
-  const aula = await prisma.aula.findUnique({
-    where: { idaula },
-    include: {
-      estadoaula: true,
-      pedidodeaula: { include: { disponibilidade: true } },
-    },
-  });
-  if (!aula)
-    throw { statusCode: 404, message: `aula.idaula=${idaula} não encontrada.` };
-
-  if (aula.pedidodeaula.disponibilidade.professorutilizadoriduser !== Number(professorutilizadoriduser))
-    throw { statusCode: 403, message: "Sem permissão: não és o professor desta aula." };
-
-  if (aula.estadoaula.nomeestadoaula !== "CONFIRMADA")
-    throw { statusCode: 400, message: `Aula está '${aula.estadoaula.nomeestadoaula}'. Só aulas CONFIRMADAS podem ser concluídas (RF08).` };
-
-  const estadoRealizada = await prisma.estadoaula.findFirst({
-    where: { nomeestadoaula: "REALIZADA" },
-  });
-  if (!estadoRealizada)
-    throw { statusCode: 500, message: "Estado 'REALIZADA' não existe na tabela estadoaula." };
-
-  await prisma.aula.update({
-    where: { idaula },
-    data: { estadoaulaidestadoaula: estadoRealizada.idestadoaula },
-  });
-
-  return prisma.aula.findUnique({ where: { idaula }, include: aulaInclude });
-}
-
-
-
-//T14 - comunicaDA ausência pelo prof e muda para estado PENDENTE 
-export async function comunicarAusencia(idaula, professorutilizadoriduser, motivo) {
-  const aula = await prisma.aula.findUnique({
-    where: { idaula },
-    include: {
-      estadoaula: true,
+  const conflictingAulas = await prisma.aula.findMany({
+    where: {
+      salaidsala: salaidsala,
       pedidodeaula: {
-        include: {
-          disponibilidade: true,
-          encarregadoeducacao: { include: { utilizador: true } },
-        },
+        data: pedido.data,
       },
     },
+    include: {
+      pedidodeaula: true,
+    },
   });
-  if (!aula)
-    throw { statusCode: 404, message: `aula.idaula=${idaula} não encontrada.` };
 
-  if (aula.pedidodeaula.disponibilidade.professorutilizadoriduser !== Number(professorutilizadoriduser))
-    throw { statusCode: 403, message: "Sem permissão: não és o professor desta aula." };
+  for (const aula of conflictingAulas) {
+    if (aula.pedidodeaula && pedido.horainicio) {
+      const existingStart = new Date(aula.pedidodeaula.horainicio).getTime();
+      const existingEnd = existingStart + (aula.pedidodeaula.duracaoaula?.getTime() || 0);
+      const newStart = new Date(pedido.horainicio).getTime();
+      const newEnd = newStart + (pedido.duracaoaula?.getTime() || 0);
 
-  if (!["PENDENTE", "CONFIRMADA"].includes(aula.estadoaula.nomeestadoaula))
-    throw { statusCode: 400, message: `Não é possível comunicar ausência numa aula '${aula.estadoaula.nomeestadoaula}'.` };
+      if (newStart < existingEnd && newEnd > existingStart) {
+        throw new Error("Sala não disponível para o horário solicitado");
+      }
+    }
+  }
 
   const estadoPendente = await prisma.estadoaula.findFirst({
     where: { nomeestadoaula: "PENDENTE" },
   });
-  if (!estadoPendente)
-    throw { statusCode: 500, message: "Estado 'PENDENTE' não existe na tabela estadoaula." };
 
-  await prisma.aula.update({
-    where: { idaula },
-    data: { estadoaulaidestadoaula: estadoPendente.idestadoaula },
-  });
+  if (!estadoPendente) {
+    throw new Error("Estado PENDENTE não encontrado");
+  }
 
-  const aulaAtualizada = await prisma.aula.findUnique({
-    where: { idaula },
-    include: aulaInclude,
-  });
-
-  // caso se use email para notificar
-  const utilizador = aula.pedidodeaula.encarregadoeducacao.utilizador;
-  const dataAula   = aula.pedidodeaula.data.toISOString().substring(0, 10);
-  await notificarAusencia({
-    email: utilizador.email,
-    nome: utilizador.nome,
-    idaula,
-    data: dataAula,
-    motivo,
-  });
-
-  return {
-    aula: aulaAtualizada,
-    notificacao: { enviada: true, email: utilizador.email },
-  };
-}
-
-
-
-//t15 - Direção substitui o professor 
-export async function substituirProfessor(idaula, novoProfessorutilizadoriduser, direcaoutilizadoriduser) {
-  const direcao = await prisma.direcao.findUnique({
-    where: { utilizadoriduser: Number(direcaoutilizadoriduser) },
-  });
-  if (!direcao)
-    throw { statusCode: 403, message: "Apenas a Direção pode substituir professores." };
-
-  const aula = await prisma.aula.findUnique({
-    where: { idaula },
-    include: { pedidodeaula: { include: { disponibilidade: true } } },
-  });
-  if (!aula)
-    throw { statusCode: 404, message: `aula.idaula=${idaula} não encontrada.` };
-
-  const novoProfessor = await prisma.professor.findUnique({
-    where: { utilizadoriduser: Number(novoProfessorutilizadoriduser) },
-  });
-  if (!novoProfessor)
-    throw { statusCode: 404, message: `professor.utilizadoriduser=${novoProfessorutilizadoriduser} não encontrado.` };
-
-  const pedido    = aula.pedidodeaula;
-  const inicioMin = timeParaMinutos(pedido.horainicio);
-  const fimMin    = inicioMin + timeParaMinutos(pedido.duracaoaula);
-
-  const temConflito = await existeConflitoProf(
-    novoProfessorutilizadoriduser, pedido.data, inicioMin, fimMin, pedido.idpedidoaula
-  );
-  if (temConflito)
-    throw { statusCode: 409, message: `professor.utilizadoriduser=${novoProfessorutilizadoriduser} já tem aula nesse horário (RF06).` };
-
-  const disponibilidade = await prisma.disponibilidade.findFirst({
-    where: { professorutilizadoriduser: Number(novoProfessorutilizadoriduser) },
-  });
-  if (!disponibilidade)
-    throw { statusCode: 400, message: "Professor substituto não tem disponibilidades registadas." };
-
-  await prisma.pedidodeaula.update({
-    where: { idpedidoaula: pedido.idpedidoaula },
-    data: { disponibilidadeiddisponibilidade: disponibilidade.iddisponibilidade },
-  });
-
-  return prisma.aula.findUnique({ where: { idaula }, include: aulaInclude });
-}
-
-
-
-//t16 -  Remarcar aula - atualiza dados mais o estado PENDENTE 
-export async function remarcarAula(idaula, data, horainicio, salaidsala, motivo) {
-  const aula = await prisma.aula.findUnique({
-    where: { idaula },
+  return prisma.aula.create({
+    data: {
+      pedidodeaulaidpedidoaula,
+      salaidsala,
+      estadoaulaidestadoaula: estadoPendente.idestadoaula,
+    },
     include: {
       estadoaula: true,
-      pedidodeaula: {
+      sala: true,
+      pedidodeaula: true,
+    },
+  });
+}
+
+export async function updateAula(id, data) {
+  const { salaidsala, estadoaulaidestadoaula } = data;
+
+  const existingAula = await prisma.aula.findUnique({
+    where: { idaula: parseInt(id) },
+    include: {
+      pedidodeaula: true,
+    },
+  });
+
+  if (!existingAula) {
+    throw new Error("Aula não encontrada");
+  }
+
+  if (salaidsala && salaidsala !== existingAula.salaidsala) {
+    const pedido = await prisma.pedidodeaula.findUnique({
+      where: { idpedidoaula: existingAula.pedidodeaulaidpedidoaula },
+    });
+
+    if (pedido) {
+      const conflictingAulas = await prisma.aula.findMany({
+        where: {
+          salaidsala: salaidsala,
+          idaula: { not: parseInt(id) },
+          pedidodeaula: {
+            data: pedido.data,
+          },
+        },
+      });
+
+      for (const aula of conflictingAulas) {
+        if (aula.pedidodeaula && pedido.horainicio) {
+          const existingStart = new Date(aula.pedidodeaula.horainicio).getTime();
+          const existingEnd = existingStart + (aula.pedidodeaula.duracaoaula?.getTime() || 0);
+          const newStart = new Date(pedido.horainicio).getTime();
+          const newEnd = newStart + (pedido.duracaoaula?.getTime() || 0);
+
+          if (newStart < existingEnd && newEnd > existingStart) {
+            throw new Error("Sala não disponível para o horário solicitado");
+          }
+        }
+      }
+    }
+  }
+
+  return prisma.aula.update({
+    where: { idaula: parseInt(id) },
+    data: {
+      ...(salaidsala && { salaidsala }),
+      ...(estadoaulaidestadoaula && { estadoaulaidestadoaula }),
+    },
+    include: {
+      estadoaula: true,
+      sala: true,
+      pedidodeaula: true,
+      alunoaula: true,
+    },
+  });
+}
+
+export async function deleteAula(id) {
+  const existingAula = await prisma.aula.findUnique({
+    where: { idaula: parseInt(id) },
+  });
+
+  if (!existingAula) {
+    throw new Error("Aula não encontrada");
+  }
+
+  await prisma.alunoaula.deleteMany({
+    where: { aulaidaula: parseInt(id) },
+  });
+
+  return prisma.aula.delete({
+    where: { idaula: parseInt(id) },
+  });
+}
+
+export async function confirmAula(id) {
+  const aula = await prisma.aula.findUnique({
+    where: { idaula: parseInt(id) },
+  });
+
+  if (!aula) {
+    throw new Error("Aula não encontrada");
+  }
+
+  const estadoConfirmada = await prisma.estadoaula.findFirst({
+    where: { nomeestadoaula: "CONFIRMADA" },
+  });
+
+  if (!estadoConfirmada) {
+    throw new Error("Estado CONFIRMADA não encontrado");
+  }
+
+  return prisma.aula.update({
+    where: { idaula: parseInt(id) },
+    data: {
+      estadoaulaidestadoaula: estadoConfirmada.idestadoaula,
+    },
+    include: {
+      estadoaula: true,
+      sala: true,
+      pedidodeaula: true,
+    },
+  });
+}
+
+export async function cancelAula(id) {
+  const aula = await prisma.aula.findUnique({
+    where: { idaula: parseInt(id) },
+  });
+
+  if (!aula) {
+    throw new Error("Aula não encontrada");
+  }
+
+  const estadoCancelada = await prisma.estadoaula.findFirst({
+    where: { nomeestadoaula: "CANCELADA" },
+  });
+
+  if (!estadoCancelada) {
+    throw new Error("Estado CANCELADA não encontrado");
+  }
+
+  return prisma.aula.update({
+    where: { idaula: parseInt(id) },
+    data: {
+      estadoaulaidestadoaula: estadoCancelada.idestadoaula,
+    },
+    include: {
+      estadoaula: true,
+      sala: true,
+      pedidodeaula: true,
+    },
+  });
+}
+
+export async function remarcarAula(id, newData, newHora) {
+  const aula = await prisma.aula.findUnique({
+    where: { idaula: parseInt(id) },
+    include: {
+      pedidodeaula: true,
+      sala: true,
+    },
+  });
+
+  if (!aula) {
+    throw new Error("Aula não encontrada");
+  }
+
+  const conflictingAulas = await prisma.aula.findMany({
+    where: {
+      salaidsala: aula.salaidsala,
+      idaula: { not: parseInt(id) },
+    },
+    include: {
+      pedidodeaula: true,
+    },
+  });
+
+  for (const existingAula of conflictingAulas) {
+    if (existingAula.pedidodeaula && newData) {
+      const existingDate = new Date(existingAula.pedidodeaula.data).toDateString();
+      const newDateStr = new Date(newData).toDateString();
+
+      if (existingDate === newDateStr && newHora && existingAula.pedidodeaula.horainicio) {
+        const existingStart = new Date(existingAula.pedidodeaula.horainicio).getTime();
+        const existingEnd = existingStart + (existingAula.pedidodeaula.duracaoaula?.getTime() || 0);
+        const newStart = new Date(newHora).getTime();
+
+        const duracao = aula.pedidodeaula?.duracaoaula?.getTime() || 3600000;
+        const newEnd = newStart + duracao;
+
+        if (newStart < existingEnd && newEnd > existingStart) {
+          throw new Error("Sala não disponível para o novo horário");
+        }
+      }
+    }
+  }
+
+  await prisma.pedidodeaula.update({
+    where: { idpedidoaula: aula.pedidodeaulaidpedidoaula },
+    data: {
+      ...(newData && { data: new Date(newData) }),
+      ...(newHora && { horainicio: new Date(newHora) }),
+    },
+  });
+
+  return prisma.aula.findUnique({
+    where: { idaula: parseInt(id) },
+    include: {
+      estadoaula: true,
+      sala: true,
+      pedidodeaula: true,
+      alunoaula: {
         include: {
-          disponibilidade: true,
-          encarregadoeducacao: { include: { utilizador: true } },
+          aluno: true,
         },
       },
     },
   });
-  if (!aula)
-    throw { statusCode: 404, message: `aula.idaula=${idaula} não encontrada.` };
+}
 
-  const pedido = aula.pedidodeaula;
-
-  // Valida data futura
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-  if (new Date(data) < hoje)
-    throw { statusCode: 400, message: "Não é possível remarcar para uma data no passado." };
-
-  // Mantém duração original 
-  const duracaoaulaMin = timeParaMinutos(pedido.duracaoaula);
-  if (duracaoaulaMin < 30 || duracaoaulaMin > 120)
-    throw { statusCode: 400, message: `duracaoaula=${duracaoaulaMin} min fora do intervalo permitido (30-120 min) (RF05).` };
-
-  const [ih, im] = horainicio.split(":").map(Number);
-  const inicioMin      = ih * 60 + im;
-  const fimMin         = inicioMin + duracaoaulaMin;
-  const salaidsalaFinal = salaidsala ? Number(salaidsala) : pedido.salaidsala;
-
-  //falha de sala
-  const conflitoSala = await existeConflitoSala(
-    salaidsalaFinal, new Date(data), inicioMin, fimMin, pedido.idpedidoaula
-  );
-  if (conflitoSala)
-    throw { statusCode: 409, message: `sala.idsala=${salaidsalaFinal} já está ocupada no novo horário (RF06).` };
-
-  //falha de prof
-  const conflitoProf = await existeConflitoProf(
-    pedido.disponibilidade.professorutilizadoriduser, new Date(data), inicioMin, fimMin, pedido.idpedidoaula
-  );
-  if (conflitoProf)
-    throw { statusCode: 409, message: "Professor já tem aula no novo horário (RF06)." };
-
-  const horainicioBD = new Date(
-    `1970-01-01T${String(ih).padStart(2, "0")}:${String(im).padStart(2, "0")}:00`
-  );
-
-  //update bd
-  await prisma.pedidodeaula.update({
-    where: { idpedidoaula: pedido.idpedidoaula },
-    data: { data: new Date(data), horainicio: horainicioBD, salaidsala: salaidsalaFinal },
-  });
-  await prisma.aula.update({
-    where: { idaula },
-    data: { salaidsala: salaidsalaFinal },
+export async function joinAula(aulaId, alunoId) {
+  const aula = await prisma.aula.findUnique({
+    where: { idaula: parseInt(aulaId) },
+    include: {
+      pedidodeaula: true,
+      alunoaula: true,
+      estadoaula: true,
+    },
   });
 
-  //volta a PENDENTE, direção tem de reconfirmar
-  const estadoPendente = await prisma.estadoaula.findFirst({
-    where: { nomeestadoaula: "PENDENTE" },
-  });
-  await prisma.aula.update({
-    where: { idaula },
-    data: { estadoaulaidestadoaula: estadoPendente.idestadoaula },
+  if (!aula) {
+    throw new Error("Aula não encontrada");
+  }
+
+  if (aula.estadoaula.nomeestadoaula !== "PENDENTE" && aula.estadoaula.nomeestadoaula !== "CONFIRMADA") {
+    throw new Error("Não é possível juntar-se a esta aula");
+  }
+
+  const alreadyJoined = aula.alunoaula.some((a) => a.alunoidaluno === parseInt(alunoId));
+  if (alreadyJoined) {
+    throw new Error("Aluno já participa nesta aula");
+  }
+
+  if (aula.pedidodeaula && aula.alunoaula.length >= aula.pedidodeaula.maxparticipantes) {
+    throw new Error("Atingido limite máximo de participantes");
+  }
+
+  const aluno = await prisma.aluno.findUnique({
+    where: { idaluno: parseInt(alunoId) },
   });
 
-  const aulaAtualizada = await prisma.aula.findUnique({
-    where: { idaula },
-    include: aulaInclude,
-  });
+  if (!aluno) {
+    throw new Error("Aluno não encontrado");
+  }
 
+  return prisma.alunoaula.create({
+    data: {
+      alunoidaluno: parseInt(alunoId),
+      aulaidaula: parseInt(aulaId),
+    },
+    include: {
+      aluno: true,
+      aula: {
+        include: {
+          estadoaula: true,
+          sala: true,
+        },
+      },
+    },
+  });
+}
+
+export async function getEstadoAulaByName(nome) {
+  return prisma.estadoaula.findFirst({
+    where: { nomeestadoaula: nome },
+  });
+}
+
+export async function sugerirNovaData(pedidoId, novaData) {
+  const tresHoras = new Date(Date.now() + 3 * 60 * 60 * 1000);
   
-  //notificar encarregado
-  const utilizador = pedido.encarregadoeducacao.utilizador;
-  await notificarRemarcacao({
-    email: utilizador.email,
-    nome: utilizador.nome,
-    idaula,
-    data,
-    horainicio,
-    motivo,
+  return prisma.pedidodeaula.update({
+    where: { idpedidoaula: parseInt(pedidoId) },
+    data: {
+      novadata: new Date(novaData),
+      novaDataLimite: tresHoras,
+    },
+    include: {
+      disponibilidade: {
+        include: {
+          modalidade: true,
+          professor: { include: { utilizador: true } }
+        }
+      },
+      encarregadoeducacao: { include: { utilizador: true } },
+      sala: true,
+    },
   });
-
-  return {
-    aula: aulaAtualizada,
-    notificacao: { enviada: true, email: utilizador.email },
-  };
 }
-
